@@ -31,18 +31,18 @@ The screenshots below provide a glimpse of the Teams360 dashboards and user expe
 ### Team Member Survey
 Complete health check surveys with intuitive red/yellow/green selections and optional comments.
 
-![alt text](docs/images/team-member.png)
+![Team Member Survey](docs/images/team-member.png)
 
 ### Manager Dashboard
 View aggregated health metrics across all supervised teams with trend analysis.
 
-![alt text](docs/images/manager-dashboard.png)
+![Manager Dashboard](docs/images/manager-dashboard.png)
 
 
 ### Team Lead Dashboard
 Monitor your team's health with detailed breakdowns and individual response tracking.
 
-![alt text](docs/images/team-lead.png)
+![Team Lead Dashboard](docs/images/team-lead.png)
 
 
 ## Quick Start
