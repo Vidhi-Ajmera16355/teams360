@@ -85,16 +85,16 @@ Each response also captures a **trend** (improving / stable / declining) and an 
 
 ## Assessment Period Logic
 
-Assessment periods are computed automatically from the submission date:
+Assessment periods are cadence-driven based on each team's configured cadence:
 
-| Submission date range | Assessment period label |
-|-----------------------|------------------------|
-| Jan 1 – Jun 30 | `{prev year} - 2nd Half` |
-| Jul 1 – Dec 31 | `{current year} - 1st Half` |
+| Cadence | Format | Example |
+|---------|--------|---------|
+| **Monthly** | `YYYY Mon` | `2026 Mar` |
+| **Quarterly** | `YYYY Q#` | `2026 Q1` |
+| **Half-yearly** | `YYYY H#` | `2026 H1` |
+| **Yearly** | `YYYY` | `2026` |
 
-Example: a survey submitted on 2025-03-14 is tagged `2024 - 2nd Half`.
-
-This means teams reflect on **completed work** rather than work in progress, improving signal quality.
+> **Legacy format**: Earlier versions generated `YYYY - 1st Half` (Jul–Dec of YYYY) and `YYYY - 2nd Half` (Jan–Jun of YYYY). This legacy format is still parsed for backward compatibility.
 
 ---
 

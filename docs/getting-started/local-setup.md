@@ -135,12 +135,7 @@ make db-start
 This runs:
 
 ```bash
-docker run -d \
-  --name teams360-db \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=teams360 \
-  -p 5432:5432 \
-  postgres:17-alpine
+docker run -d --name teams360-db -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16-alpine
 ```
 
 ### Option B — Existing PostgreSQL

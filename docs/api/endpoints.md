@@ -22,7 +22,7 @@ All endpoints are prefixed with `/api/v1/` unless noted otherwise.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/health` | — | Liveness probe — returns `{"status":"ok"}` |
+| GET | `/health` | — | Liveness probe — returns `{"status":"healthy"}` |
 | GET | `/api/v1/config` | — | Returns SSO / OAuth client configuration (client ID, authorize URL, scopes). Used by frontend to render the SSO button. |
 
 ---
@@ -101,10 +101,10 @@ See [team-dashboard-api.md](./team-dashboard-api.md) for full request/response e
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/v1/managers/:managerId/teams/health` | JWT | Aggregated health data for all teams supervised by this manager. |
-| GET | `/api/v1/managers/:managerId/dashboard/radar` | JWT | Radar chart data aggregated across all supervised teams for a given period. |
-| GET | `/api/v1/managers/:managerId/dashboard/trends` | JWT | Trend lines aggregated across all supervised teams. |
-| GET | `/api/v1/managers/:managerId/subordinates` | JWT | List all users in the manager's reporting chain. |
+| GET | `/api/v1/managers/:managerId/teams/health` | Manager+ | Aggregated health data for all teams supervised by this manager. |
+| GET | `/api/v1/managers/:managerId/dashboard/radar` | Manager+ | Radar chart data aggregated across all supervised teams for a given period. |
+| GET | `/api/v1/managers/:managerId/dashboard/trends` | Manager+ | Trend lines aggregated across all supervised teams. |
+| GET | `/api/v1/managers/:managerId/subordinates` | Manager+ | List all users in the manager's reporting chain. |
 | GET | `/api/v1/managers/:managerId/teams/action-items` | Manager+ | Action item summary across all supervised teams. |
 
 ---

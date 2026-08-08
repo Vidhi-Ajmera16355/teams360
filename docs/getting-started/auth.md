@@ -33,52 +33,58 @@ Team Health Check supports two authentication methods simultaneously. Both coexi
 
 ---
 
+## Authentication & Cookie Specification
+
+### Token & Session Storage
+
+| Item | Storage | Format / Key | Expiry | Purpose |
+|------|---------|--------------|--------|---------|
+| **Access Token** | `localStorage` | Key: `accessToken` | JWT expiry (from backend) | API requests authorization |
+| **Refresh Token** | `localStorage` | Key: `refreshToken` | Long-lived | Refreshing access token via `POST /api/v1/auth/refresh` |
+| **User Session Cookie** | Cookie | Key: `user` (URL-encoded JSON) | 7 days (`max-age=604800`) | Middleware route protection |
+
+---
+
 ## SSO / OIDC Flow (Authorization Code + PKCE)
 
 Team Health Check supports any OIDC-compliant provider: Keycloak, Okta, Auth0, Google, Azure AD, etc.
 
 ```
-1. User clicks "Sign in with SSO" on /login
-2. Frontend generates PKCE code_verifier + code_challenge
-3. Frontend redirects to provider's /authorize endpoint:
+1. Frontend fetches SSO config dynamically from GET /api/v1/config
+2. User clicks "Sign in with SSO" on /login
+3. Frontend generates PKCE code_verifier + code_challenge
+4. Frontend redirects to provider's /authorize endpoint:
       ?client_id=...
       &redirect_uri=.../auth/callback
       &response_type=code
       &scope=openid email profile
       &code_challenge=...
       &code_challenge_method=S256
-4. User authenticates at provider
-5. Provider redirects to /auth/callback?code=...
-6. Frontend calls POST /api/v1/auth/sso/callback
+5. User authenticates at provider
+6. Provider redirects to /auth/callback?code=...
+7. Frontend calls POST /api/v1/auth/sso/callback
       { code, code_verifier, redirect_uri }
-7. Backend calls provider's token endpoint to exchange code → tokens
-8. Backend extracts `email` from ID token claims
-9. Backend looks up user by email in users table
-10. If found: same cookie-set flow as username/password
-11. If not found: return 401 "SSO account not provisioned"
+8. Backend calls provider's token endpoint to exchange code → tokens
+9. Backend extracts `email` from ID token claims
+10. Backend looks up user by email in users table
+11. If found: return JWT access token, refresh token, and user info
+12. If not found: return 401 "SSO account not provisioned"
     (Team Health Check does not auto-create users from SSO logins)
 ```
 
 ### Configure SSO
 
-**Frontend** (`frontend/.env.local`):
-
-```env
-NEXT_PUBLIC_OAUTH_CLIENT_ID=your-client-id
-NEXT_PUBLIC_OAUTH_AUTHORIZE_URL=https://your-provider.com/oauth/authorize
-NEXT_PUBLIC_OAUTH_REDIRECT_URI=http://localhost:3000/auth/callback
-NEXT_PUBLIC_OAUTH_SCOPES=openid email profile
-```
-
-**Backend** (`backend/.env`):
+SSO configuration is configured on the **backend** (`backend/.env`):
 
 ```env
 OAUTH_CLIENT_ID=your-client-id
+OAUTH_AUTHORIZE_URL=https://your-provider.com/oauth/authorize
 OAUTH_TOKEN_URL=https://your-provider.com/oauth/token
 OAUTH_REDIRECT_URI=http://localhost:3000/auth/callback
+OAUTH_SCOPES=openid email profile
 ```
 
-If the frontend OAuth env vars are not set, the "Sign in with SSO" button is hidden.
+The frontend fetches these configuration parameters at runtime via `GET /api/v1/config`. If `OAUTH_CLIENT_ID` is not set on the backend, the "Sign in with SSO" button is automatically hidden.
 
 ### Provider setup quick reference
 
