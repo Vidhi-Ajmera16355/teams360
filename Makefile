@@ -2,7 +2,7 @@
 # Orchestrates both Frontend (Next.js/TypeScript) and Backend (Go/Gin)
 #
 # Quick Start: make run
-# Documentation: docs/MAKEFILE.md
+# Documentation: docs/development/makefile.md
 
 # =============================================================================
 # Configuration
@@ -66,7 +66,7 @@ help: ## Show this help message
 	@echo "$(CYAN)Backend Targets:$(RESET)"
 	@grep -E '^[a-zA-Z_-]+:.*?##.*\[Backend\]' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-22s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "$(CYAN)Documentation:$(RESET) See docs/MAKEFILE.md for detailed documentation"
+	@echo "$(CYAN)Documentation:$(RESET) See docs/development/makefile.md for detailed documentation"
 
 # =============================================================================
 # Installation
