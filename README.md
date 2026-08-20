@@ -196,11 +196,16 @@ Create user accounts for everyone who will participate in health checks.
 
 ### Step 2: Establish Assessment Periods
 
-Team360 automatically determines assessment periods based on the calendar:
-- **January - June**: Surveys contribute to "Previous Year - 2nd Half" (reflecting on the period just ended)
-- **July - December**: Surveys contribute to "Current Year - 1st Half"
+Team360 automatically determines each survey's assessment period from the submission date and the team's configured cadence:
 
-This approach encourages reflection on completed work rather than in-progress activities.
+| Cadence | Format | Example |
+|---------|--------|---------|
+| Monthly | `YYYY Mon` | `2026 Mar` |
+| Quarterly | `YYYY Q#` | `2026 Q1` |
+| Half-yearly (default) | `YYYY H#` | `2026 H1` |
+| Yearly | `YYYY` | `2026` |
+
+Earlier versions used a fixed half-year format (`YYYY - 1st Half` for Jul–Dec of `YYYY`, `YYYY - 2nd Half` for Jan–Jun of `YYYY + 1`). That format is still parsed for backward compatibility with existing sessions, but is no longer generated for new ones — see [Domain Model](docs/architecture/domain-model.md#assessment-period-logic).
 
 ### Step 3: Conduct Health Check Sessions
 

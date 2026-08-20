@@ -17,14 +17,14 @@ Next.js 15 (port 3000)         <- App Router, TypeScript, Tailwind CSS
   |
   | HTTP/JSON  (REST API at /api/v1/*)
   v
-Go / Gin backend (port 8080)   <- Domain-Driven Design, pgx driver
+Go / Gin backend (port 8080)   <- Domain-Driven Design, database/sql + lib/pq
   |
-  | SQL (pgx v5)
+  | SQL (database/sql, lib/pq driver)
   v
 PostgreSQL 17 (port 5432)      <- ACID, 11 tables, golang-migrate
 ```
 
-The frontend's `app/api/v1/*` routes act as a **same-origin proxy** to the Go backend, eliminating CORS configuration in development. In production, the proxy routes should be evaluated and replaced with a proper reverse-proxy or kept if same-origin is maintained.
+The browser calls the Go backend **directly** at `NEXT_PUBLIC_API_URL` (e.g. `http://localhost:8080`) — there is no same-origin proxy route in the Next.js app (no `frontend/app/api/`). Cross-origin requests are handled by the backend's own `CORSMiddleware` (`backend/interfaces/api/middleware/cors.go`), registered in `backend/cmd/api/main.go`.
 
 ---
 
@@ -37,7 +37,7 @@ The frontend's `app/api/v1/*` routes act as a **same-origin proxy** to the Go ba
 | Next.js | 15.x | React framework, App Router |
 | TypeScript | 5.x | Type safety |
 | Tailwind CSS | 3.x | Utility-first styling |
-| Recharts | 2.x | Radar, bar, and line charts |
+| Recharts | 3.x | Radar, bar, and line charts |
 | Lucide React | Latest | Icons |
 | js-cookie | Latest | Cookie-based auth token |
 
@@ -47,9 +47,9 @@ The frontend's `app/api/v1/*` routes act as a **same-origin proxy** to the Go ba
 |-----------|---------|---------|
 | Go | 1.25+ | Application language |
 | Gin | Latest | HTTP router and middleware |
-| pgx | v5 | PostgreSQL driver (connection pool) |
+| database/sql + lib/pq | v1.10.9 | PostgreSQL driver |
 | golang-migrate | Latest | Database migrations |
-| bcrypt | stdlib | Password hashing |
+| golang.org/x/crypto/bcrypt | External package | Password hashing (`bcrypt.DefaultCost`, cost 10) |
 
 ### Testing
 
@@ -66,8 +66,7 @@ The frontend's `app/api/v1/*` routes act as a **same-origin proxy** to the Go ba
 ```
 teams360/
 ├── frontend/                    # Next.js 15 application
-│   ├── app/                     # App Router pages
-│   │   ├── api/v1/             # Proxy routes to backend
+│   ├── app/                     # App Router pages (no /api proxy — calls backend directly)
 │   │   ├── home/               # Team Member home page
 │   │   ├── survey/             # Health check survey
 │   │   ├── dashboard/          # Team Lead dashboard
@@ -94,12 +93,13 @@ teams360/
 │   │   ├── commands/           # Write operations
 │   │   └── queries/            # Read operations
 │   ├── infrastructure/         # INFRASTRUCTURE LAYER — external concerns
-│   │   └── persistence/postgres/
-│   │       ├── migrations/     # SQL migration files (000001 - 000020+)
-│   │       ├── user_repository.go
-│   │       ├── team_repository.go
-│   │       ├── health_check_repository.go
-│   │       └── organization_repository.go
+│   │   ├── persistence/postgres/
+│   │   │   ├── migrations/     # SQL migration files (000001 - 000020+)
+│   │   │   ├── user_repository.go
+│   │   │   ├── team_repository.go
+│   │   │   ├── health_check_repository.go
+│   │   │   └── organization_repository.go
+│   │   └── email/              # SES/SMTP email sending
 │   └── interfaces/             # INTERFACES LAYER — HTTP handlers
 │       ├── api/v1/             # Gin handlers
 │       ├── dto/                # Data Transfer Objects
@@ -123,7 +123,7 @@ teams360/
 |-------|---------|----------------|
 | **Domain** | `backend/domain/` | Entities, value objects, repository interfaces, domain events. Zero external dependencies. |
 | **Application** | `backend/application/` | Use-case orchestration. Calls domain + infrastructure via interfaces. |
-| **Infrastructure** | `backend/infrastructure/` | PostgreSQL repository implementations, pgx pool, migrations. |
+| **Infrastructure** | `backend/infrastructure/` | PostgreSQL repository implementations (database/sql + lib/pq), migrations, email sending. |
 | **Interfaces** | `backend/interfaces/` | Gin HTTP handlers, DTOs, middleware. Thin layer: parse request, call application, return response. |
 
 ### DDD Aggregates
@@ -173,22 +173,25 @@ Browser             Next.js             Go / Gin            PostgreSQL
   |                    |                    | 5. bcrypt.Compare  |
   |                    |                    |    (pw, hash)      |
   |                    |                    |                    |
-  |                    | 6. 200 + Set-Cookie|                    |
+  |                    | 6. 200 + JWT       |                    |
+  |                    |    access/refresh  |                    |
   |                    | <───────────────── |                    |
   |                    |                    |                    |
-  | 7. js-cookie stores|                    |                    |
-  |    userId + role   |                    |                    |
+  | 7. Store tokens in |                    |                    |
+  |    localStorage +  |                    |                    |
+  |    set `user`      |                    |                    |
+  |    cookie (7 days) |                    |                    |
   | 8. Redirect to     |                    |                    |
   |    role dashboard  |                    |                    |
   | <────────────────  |                    |                    |
 ```
 
 **Components involved:**
-- `frontend/app/login/page.tsx` — login form
-- `frontend/app/api/v1/auth/login/route.ts` — proxy to backend
-- `backend/interfaces/api/v1/auth_handler.go` — validates credentials
+- `frontend/app/login/page.tsx` — login form; calls the backend directly at `NEXT_PUBLIC_API_URL` (no proxy route)
+- `backend/interfaces/api/v1/auth_handler.go` — validates credentials, issues JWTs
 - `backend/infrastructure/persistence/postgres/user_repository.go` — `FindByUsername()`
-- `frontend/middleware.ts` — enforces cookie on subsequent requests
+- `frontend/lib/auth.ts` — stores `accessToken`/`refreshToken` in localStorage and the `user` cookie
+- `frontend/middleware.ts` — enforces the `user` cookie on subsequent page loads
 
 **Data touched:** `users` table (read-only), `password_hash` column (bcrypt compare)
 
@@ -205,46 +208,41 @@ Browser             Next.js             Go / Gin            PostgreSQL
 
 **Entry point**: `/survey` page → user completes 11 dimensions → submits
 
+The Next.js server only renders the `/survey` page shell; all API calls below go directly from browser JS to the Go backend (`NEXT_PUBLIC_API_URL`), not through Next.js:
+
 ```
-Browser (Team Member)   Next.js              Go / Gin           PostgreSQL
-  |                        |                    |                    |
-  | 1. GET /survey         |                    |                    |
-  | ──────────────────>    |                    |                    |
-  |                        | 2. Fetch dimensions|                    |
-  |                        | GET /health-dims   |                    |
-  |                        | ─────────────────> |                    |
-  |                        |                    | 3. SELECT * FROM   |
-  |                        |                    |    health_dimensions|
-  |                        |                    |    WHERE is_active  |
-  |                        |                    | ─────────────────> |
-  |                        |                    | <───────────────── |
-  |                        | 4. 11 dimensions   |                    |
-  |                        | <───────────────── |                    |
-  | 5. Render survey form  |                    |                    |
-  | <──────────────────    |                    |                    |
-  |                        |                    |                    |
-  | 6. User selects        |                    |                    |
-  |    score + trend for   |                    |                    |
-  |    each dimension      |                    |                    |
-  |                        |                    |                    |
-  | 7. POST /api/v1/       |                    |                    |
-  |    health-checks       |                    |                    |
-  |    {teamId, userId,    |                    |                    |
-  |     responses[11]}     |                    |                    |
-  | ──────────────────>    |                    |                    |
-  |                        | 8. Proxy to backend|                    |
-  |                        | ─────────────────> |                    |
-  |                        |                    | 9. BEGIN TX        |
-  |                        |                    |    INSERT session  |
-  |                        |                    |    INSERT 11 rows  |
-  |                        |                    |    into responses  |
-  |                        |                    |    COMMIT          |
-  |                        |                    | ─────────────────> |
-  |                        |                    | <───────────────── |
-  |                        | 10. 201 session ID |                    |
-  |                        | <───────────────── |                    |
-  | 11. Redirect to /home  |                    |                    |
-  | <──────────────────    |                    |                    |
+Browser (Team Member)                        Go / Gin           PostgreSQL
+  |                                              |                    |
+  | 1. GET /survey  (Next.js renders page shell) |                    |
+  |                                              |                    |
+  | 2. GET /api/v1/health-dimensions             |                    |
+  | ────────────────────────────────────────────>|                    |
+  |                                              | 3. SELECT * FROM   |
+  |                                              |    health_dimensions|
+  |                                              |    WHERE is_active  |
+  |                                              | ─────────────────> |
+  |                                              | <───────────────── |
+  | 4. 11 dimensions                             |                    |
+  | <────────────────────────────────────────────|                    |
+  | 5. Render survey form                        |                    |
+  |                                              |                    |
+  | 6. User selects score + trend for            |                    |
+  |    each dimension                            |                    |
+  |                                              |                    |
+  | 7. POST /api/v1/health-checks                |                    |
+  |    {teamId, userId, responses[11]}           |                    |
+  |    (authenticatedFetch, Bearer JWT)          |                    |
+  | ────────────────────────────────────────────>|                    |
+  |                                              | 8. BEGIN TX        |
+  |                                              |    INSERT session  |
+  |                                              |    INSERT 11 rows  |
+  |                                              |    into responses  |
+  |                                              |    COMMIT          |
+  |                                              | ─────────────────> |
+  |                                              | <───────────────── |
+  | 9. 201 session ID                            |                    |
+  | <────────────────────────────────────────────|                    |
+  | 10. Redirect to /home                        |                    |
 ```
 
 **Components involved:**
@@ -258,12 +256,7 @@ Browser (Team Member)   Next.js              Go / Gin           PostgreSQL
 - `health_check_sessions` (write)
 - `health_check_responses` (write — 11 rows per submission)
 
-**Assessment period logic:**
-
-```
-Jan 1 – Jun 30  →  "{prev year} - 2nd Half"
-Jul 1 – Dec 31  →  "{current year} - 1st Half"
-```
+**Assessment period logic:** cadence-driven, computed by `frontend/lib/assessment-period.ts` — see [Domain Model](domain-model.md#assessment-period-logic) for the full format table and legacy-period mapping.
 
 ---
 
@@ -271,37 +264,34 @@ Jul 1 – Dec 31  →  "{current year} - 1st Half"
 
 **Entry point**: Manager navigates to `/manager`
 
+Next.js renders the `/manager` page shell; the health data call goes directly from browser JS to the Go backend:
+
 ```
-Browser (Manager)     Next.js            Go / Gin           PostgreSQL
-  |                      |                  |                    |
-  | 1. GET /manager      |                  |                    |
-  | ──────────────────>  |                  |                    |
-  |                      | 2. GET /managers/|                    |
-  |                      |  {id}/teams/     |                    |
-  |                      |  health          |                    |
-  |                      | ───────────────> |                    |
-  |                      |                  | 3. Find supervised |
-  |                      |                  |    teams via       |
-  |                      |                  |    team_supervisors|
-  |                      |                  | ───────────────── >|
-  |                      |                  |                    |
-  |                      |                  | 4. For each team:  |
-  |                      |                  |    aggregate scores|
-  |                      |                  |    by dimension    |
-  |                      |                  |    for current     |
-  |                      |                  |    period          |
-  |                      |                  | ───────────────── >|
-  |                      |                  | <──────────────── |
-  |                      |                  |                    |
-  |                      | 5. JSON array of |                    |
-  |                      |    team health   |                    |
-  |                      |    objects       |                    |
-  |                      | <────────────── |                    |
-  |                      |                  |                    |
-  | 6. Render team cards |                  |                    |
-  |    + radar charts    |                  |                    |
-  |    (Recharts)        |                  |                    |
-  | <──────────────────  |                  |                    |
+Browser (Manager)                          Go / Gin           PostgreSQL
+  |                                            |                     |
+  | 1. GET /manager (Next.js renders shell)    |                     |
+  |                                            |                     |
+  | 2. GET /api/v1/managers/{id}/teams/health  |                     |
+  |    (authenticatedFetch, Bearer JWT)        |                     |
+  | ──────────────────────────────────────────>|                     |
+  |                                            | 3. Find supervised  |
+  |                                            |    teams via        |
+  |                                            |    team_supervisors |
+  |                                            | ───────────────── > |
+  |                                            |                     |
+  |                                            | 4. For each team:   |
+  |                                            |    aggregate scores |
+  |                                            |    by dimension     |
+  |                                            |    for current      |
+  |                                            |    period           |
+  |                                            | ───────────────── > |
+  |                                            | <────────────────   |
+  |                                            |                     |
+  | 5. JSON array of team health objects       |                     |
+  | <──────────────────────────────────────────|                     |
+  |                                            |                     |
+  | 6. Render team cards + radar charts        |                     |
+  |    (Recharts)                              |                     |
 ```
 
 **Components involved:**
@@ -337,24 +327,6 @@ Browser (Manager)     Next.js            Go / Gin           PostgreSQL
 
 ---
 
-## API Proxy Pattern
-
-Next.js routes proxy requests to avoid CORS in development:
-
-```typescript
-// frontend/app/api/v1/admin/teams/route.ts
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-
-export async function GET() {
-  const response = await fetch(`${BACKEND_URL}/api/v1/admin/teams`);
-  return Response.json(await response.json());
-}
-```
-
-In production, consider replacing this with a reverse-proxy (nginx / ALB) if the frontend and backend are on separate origins.
-
----
-
 ## Observability Hooks
 
 The backend emits OpenTelemetry spans and metrics on every request. See [Operations & Observability](../operations/observability.md) for the full catalogue. Key spans:
@@ -364,4 +336,4 @@ The backend emits OpenTelemetry spans and metrics on every request. See [Operati
 | `auth.login` | POST `/api/v1/auth/login` |
 | `healthcheck.submit` | POST `/api/v1/health-checks` |
 | `manager.teams.health` | GET `/api/v1/managers/{id}/teams/health` |
-| `db.query` | Every pgx SQL execution |
+| `db.query` | Every database/sql query execution |

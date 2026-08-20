@@ -12,9 +12,11 @@ All endpoints are prefixed with `/api/v1/` unless noted otherwise.
 | Symbol | Meaning |
 |--------|---------|
 | `—` | Public (no auth) |
-| `JWT` | Requires valid JWT (cookie or Authorization header) |
-| `Admin` | Requires `can_configure_system = true` on the user's hierarchy level |
-| `Manager+` | Requires Manager level or above (`can_view_analytics = true`) |
+| `JWT` | Requires a valid, non-expired JWT access token (`Authorization: Bearer <token>`) |
+| `Admin` | `AdminOnlyMiddleware` — requester's hierarchy level must be `level-1` or `level-admin` |
+| `Manager+` | `ManagerOrAboveMiddleware` — requester's hierarchy level must be `level-1`, `level-2`, `level-3`, or `level-admin` |
+
+These backend checks are hardcoded hierarchy-level IDs (`backend/interfaces/middleware/jwt_auth.go`), independent of the `hierarchy_levels` permission booleans (`canConfigureSystem`, etc.) that drive the frontend's UI-level RBAC — see [Authentication & Authorization](../getting-started/auth.md).
 
 ---
 
@@ -31,9 +33,9 @@ All endpoints are prefixed with `/api/v1/` unless noted otherwise.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/v1/auth/login` | — | Username + password login. Returns user object and sets session cookie. |
-| POST | `/api/v1/auth/refresh` | JWT | Refresh session / access token. |
-| POST | `/api/v1/auth/logout` | JWT | Invalidate session. |
+| POST | `/api/v1/auth/login` | — | Username + password login. Returns JWT access + refresh tokens and the user object. |
+| POST | `/api/v1/auth/refresh` | — | Public — takes a refresh token in the body and returns a new access token. Registered without `JWTAuthMiddleware` in `SetupAuthRoutes` (an expired access token is exactly when this is called). |
+| POST | `/api/v1/auth/logout` | — | Public — also registered without `JWTAuthMiddleware` in `SetupAuthRoutes`. |
 | POST | `/api/v1/auth/sso/callback` | — | Exchange OAuth authorization code for session (PKCE flow). Extracts `email` from ID token and matches to existing user. |
 | POST | `/api/v1/auth/forgot-password` | — | Initiate password reset. Accepts `email`; creates a short-lived reset token and sends email. |
 | POST | `/api/v1/auth/reset-password` | — | Complete password reset. Accepts `token` + `new_password`; marks token used. |

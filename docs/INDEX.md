@@ -1,6 +1,4 @@
-# Team360 Documentation
-
-> Internal engineering documentation for the Team360 Health Check platform.  
+# Team Health Check Documentation
 
 ---
 
@@ -15,23 +13,20 @@
 - **[Local Setup Guide](./getting-started/local-setup.md)**
   Step-by-step guide to clone the repo, configure environment variables, start PostgreSQL, run migrations, and verify a working local stack.
 
-- **[Environment & Access (Dev / Int / Prod)](./getting-started/environments.md)**
-  Per-environment URLs, database connection strings, access groups, and escalation contacts.
+- **[Environment & Access](./getting-started/environments.md)**
+  What environments actually exist today (local dev + self-hosted KubeVela deployment), plus a template for organizations adding their own shared Dev/Int/Prod environments.
 
 - **[Database Provisioning & Configuration](./architecture/db-schema.md)**
   PostgreSQL schema (all 11 tables), migration history, seed data, performance indexes, and operational commands.
 
 - **[Authentication & Authorization](./getting-started/auth.md)**
-  Cookie-based session flow, bcrypt password handling, SSO / OIDC (PKCE) integration guide, hierarchy-level permission matrix, and route-protection middleware.
+  JWT (access + refresh) and cookie-based session flow, bcrypt password handling, SSO / OIDC (PKCE) integration guide, hierarchy-level permission matrix, and route-protection middleware.
 
 - **[Operations & Observability](./operations/observability.md)**
   OpenTelemetry setup, Prometheus metrics catalogue (40+ metrics), Grafana dashboard bootstrap, structured logging format, and alerting runbooks.
 
 - **[CI/CD & Deployment](./operations/deployment.md)**
   GitHub Actions workflows (CI, release, security), Docker image tags, KubeVela + CNPG Kubernetes deployment, and release verification checklist.
-
-- **[Known Issues - Cause & Fix Tracker](./known-issues.md)**
-  Living table of confirmed bugs, root causes, fixes applied or in progress, and Jira / Slack pointers. Updated each sprint.
 
 - **[Onboarding Checklist for New Developers](./getting-started/onboarding.md)**
   Day-1 through Day-5 checklist covering access provisioning, local setup, codebase orientation, first commit, and definition-of-done for onboarding sign-off.

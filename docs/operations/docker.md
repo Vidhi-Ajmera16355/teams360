@@ -148,12 +148,12 @@ Images are available from GitHub Container Registry:
 
 ```bash
 # Backend API
-docker pull ghcr.io/anthropics/teams360-api:latest
-docker pull ghcr.io/anthropics/teams360-api:v1.0.0
+docker pull ghcr.io/guidewire-oss/teams360-api:latest
+docker pull ghcr.io/guidewire-oss/teams360-api:v1.0.0
 
 # Frontend
-docker pull ghcr.io/anthropics/teams360-frontend:latest
-docker pull ghcr.io/anthropics/teams360-frontend:v1.0.0
+docker pull ghcr.io/guidewire-oss/teams360-frontend:latest
+docker pull ghcr.io/guidewire-oss/teams360-frontend:v1.0.0
 ```
 
 ### Image Tags
@@ -171,8 +171,8 @@ docker pull ghcr.io/anthropics/teams360-frontend:v1.0.0
 All images are signed with Sigstore. Verify with:
 
 ```bash
-cosign verify ghcr.io/anthropics/teams360-api:v1.0.0 \
-  --certificate-identity-regexp="https://github.com/anthropics/teams360" \
+cosign verify ghcr.io/guidewire-oss/teams360-api:v1.0.0 \
+  --certificate-identity-regexp="https://github.com/guidewire-oss/teams360" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
 ```
 
@@ -279,7 +279,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/anthropics/teams360-api:v1.0.0
+          image: ghcr.io/guidewire-oss/teams360-api:v1.0.0
           envFrom:
             - secretRef:
                 name: teams360-db-credentials

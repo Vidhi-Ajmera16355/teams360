@@ -71,15 +71,12 @@ Each response also captures a **trend** (improving / stable / declining) and an 
 
 ---
 
-## How It Fits in the Internal Tooling Ecosystem
+## External Integrations
 
-| Tool | Relationship |
+| Integration | Relationship |
 |------|-------------|
-| **Team Health Check** (this app) | Team health tracking and trend analysis |
-| TODO: PodIQ | TODO: describe integration if applicable |
-| TODO: Lens | TODO: describe integration if applicable |
-| Identity provider (Okta / Keycloak / TODO) | SSO via OIDC; users must pre-exist in Team Health Check's DB |
-| AWS SES / SMTP | Optional email notifications for survey reminders and weekly digest |
+| Any OIDC-compliant identity provider (Keycloak, Okta, Auth0, Google, Azure AD, etc.) | Optional SSO login; users must already exist in Team Health Check's DB — SSO does not auto-provision accounts (see [Authentication & Authorization](getting-started/auth.md)) |
+| AWS SES / SMTP | Optional email notifications (e.g. password reset) |
 
 ---
 
@@ -94,7 +91,7 @@ Assessment periods are cadence-driven based on each team's configured cadence:
 | **Half-yearly** | `YYYY H#` | `2026 H1` |
 | **Yearly** | `YYYY` | `2026` |
 
-> **Legacy format**: Earlier versions generated `YYYY - 1st Half` (Jul–Dec of YYYY) and `YYYY - 2nd Half` (Jan–Jun of YYYY). This legacy format is still parsed for backward compatibility.
+> **Legacy format**: Earlier versions generated `YYYY - 1st Half` (Jul–Dec of `YYYY`) and `YYYY - 2nd Half` (Jan–Jun of `YYYY + 1`). This legacy format is still parsed for backward compatibility but is no longer generated.
 
 ---
 
@@ -104,25 +101,25 @@ Assessment periods are cadence-driven based on each team's configured cadence:
 
 The home screen shows a user's team, their survey history, and a prompt to take the current period's health check.
 
-![Team Member Home screen](../docs/images/home.png)
+![Team Member Home screen](images/home.png)
 
 ### Team Lead Dashboard
 
 Team leads see a radar chart across all 11 dimensions, a response-distribution bar chart, and individual member submissions.
 
-![Team Lead Dashboard](../docs/images/teamLead.png)
+![Team Lead Dashboard](images/teamLead.png)
 
 ### Manager / VP Dashboard
 
 Managers and executives see health cards for each supervised team, a radar comparison across teams, and trend lines across assessment periods.
 
-![Manager Dashboard](../docs/images/manager.png)
+![Manager Dashboard](images/manager.png)
 
 ### Admin Panel
 
 Admins manage users, teams, hierarchy levels, and health dimensions without any code changes.
 
-![Admin Panel](../docs/images/admin.png)
+![Admin Panel](images/admin.png)
 
 ---
 

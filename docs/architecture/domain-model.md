@@ -14,9 +14,8 @@ backend/
 │   ├── commands/      # Command handlers (write operations)
 │   └── queries/       # Query handlers (read operations)
 ├── infrastructure/    # Infrastructure layer
-│   ├── persistence/   # Database implementations
-│   ├── http/          # HTTP clients, external APIs
-│   └── messaging/     # Event bus, message queues
+│   ├── persistence/   # PostgreSQL implementations (database/sql + lib/pq)
+│   └── email/         # SES/SMTP email sending
 ├── interfaces/        # Interface layer
 │   ├── api/v1/        # Gin HTTP handlers (API version 1)
 │   ├── dto/           # Data Transfer Objects
@@ -60,28 +59,39 @@ Located in `frontend/lib/types.ts`:
      - **Team Health Check additions**: Easy to Release, Suitable Process, Teamwork
      - Each dimension has goodDescription/badDescription for clarity (e.g., "We deliver great stuff!" vs "We deliver crap")
      - Dimensions can be enabled/disabled and weighted via isActive and weight properties
-   - `HealthCheckSession`: User's responses to health check, includes assessmentPeriod (e.g., "2024 - 1st Half")
+   - `HealthCheckSession`: User's responses to health check, includes assessmentPeriod (e.g., "2026 H1", or "2024 - 1st Half" for legacy sessions)
    - `HealthCheckResponse`: Score (1=red, 2=yellow, 3=green), trend (improving/stable/declining), optional comment
 
 ## Assessment Period Logic
 
-Assessment periods are detected automatically (implemented in `frontend/lib/assessment-period.ts`):
+Assessment periods are cadence-driven, computed by `frontend/lib/assessment-period.ts`. The format depends on the team's configured cadence:
 
-- Jan 1 – Jun 30 → "previous year - 2nd Half" (e.g., 2025-01-15 → "2024 - 2nd Half")
-- Jul 1 – Dec 31 → "current year - 1st Half" (e.g., 2025-07-15 → "2025 - 1st Half")
-
-This eliminates manual period selection in surveys and enables automatic trend tracking across periods.
+| Cadence | Format | Example |
+|---------|--------|---------|
+| Monthly | `YYYY Mon` | `2026 Mar` |
+| Quarterly | `YYYY Q#` | `2026 Q1` |
+| Half-yearly (default) | `YYYY H#` | `2026 H1` |
+| Yearly | `YYYY` | `2026` |
 
 ```typescript
-export function getAssessmentPeriod(date?: Date | string): string {
-  const submissionDate = date ? (typeof date === 'string' ? new Date(date) : date) : new Date();
-  const month = submissionDate.getMonth(); // 0-indexed
-  const year = submissionDate.getFullYear();
+export function getAssessmentPeriod(date?: Date | string, cadence?: Cadence): string {
+  const d = date ? (typeof date === 'string' ? new Date(date) : date) : new Date();
+  const year = d.getFullYear();
+  const month = d.getMonth(); // 0-indexed
 
-  if (month >= 0 && month <= 5) {
-    return `${year - 1} - 2nd Half`;
-  } else {
-    return `${year} - 1st Half`;
+  switch (cadence) {
+    case 'monthly':   return `${year} ${MONTH_NAMES[month]}`;
+    case 'quarterly': return `${year} Q${Math.floor(month / 3) + 1}`;
+    case 'yearly':    return `${year}`;
+    case 'half-yearly':
+    default:          return `${year} H${month < 6 ? 1 : 2}`;
   }
 }
 ```
+
+**Legacy format:** Sessions created before cadence-driven periods used the fixed half-year string `"YYYY - 1st/2nd Half"`, which is still parsed (but no longer generated) for backward compatibility:
+
+- `"YYYY - 1st Half"` covers Jul–Dec of `YYYY` (equivalent to `YYYY H2`)
+- `"YYYY - 2nd Half"` covers Jan–Jun of `YYYY + 1` (equivalent to `(YYYY + 1) H1`) — **not** Jan–Jun of `YYYY`
+
+See `parseAssessmentPeriod()` / `compareAssessmentPeriods()` in `frontend/lib/assessment-period.ts` for the full parsing and chronological-sort logic.

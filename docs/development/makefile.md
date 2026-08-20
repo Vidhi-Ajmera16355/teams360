@@ -19,7 +19,7 @@ This document describes all available Make targets for the Team Health Check pro
 
 ```bash
 # Clone and run - that's it!
-git clone https://github.com/anthropics/teams360.git
+git clone https://github.com/guidewire-oss/teams360.git
 cd teams360
 make run
 ```

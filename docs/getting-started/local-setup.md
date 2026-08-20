@@ -28,7 +28,6 @@ docker --version # must be >= 24
 ### Required access
 
 - Read access to `github.com/guidewire-oss/teams360` (public repo — no approval needed)
-- TODO: Internal fork / mirror access if behind a corporate proxy
 
 ### Optional tools
 
@@ -57,7 +56,18 @@ Copy the provided example and fill in values:
 cp .env.example .env
 ```
 
-The file is read by the Makefile and passed to both services. Below is a realistic local configuration (all values are safe for local dev — never commit real secrets):
+**Nothing loads this file automatically.** Neither the Makefile nor the Go backend (there is no `godotenv`/dotenv dependency) reads `.env` on its own — it's a reference template. To actually get these variables into `make run` / `make dev`, export them into your shell first:
+
+```bash
+set -a
+source .env
+set +a
+make run
+```
+
+The Makefile itself only ever hardcodes and passes `DATABASE_URL` (and `TEST_DATABASE_URL`) explicitly to `go run`, each with a `?=` default you can override either by exporting it beforehand (as above) or passing it on the command line: `make run DATABASE_URL=...`. Every other backend variable (`GIN_MODE`, `API_PORT`, `OAUTH_*`, `AWS_SES_*`, `SMTP_*`) is read by the Go process via plain `os.Getenv`, so it must already be present in the shell's environment when `go run cmd/api/main.go` starts — sourcing `.env` as shown above is the simplest way to do that for local dev.
+
+Below is a realistic local configuration (all values are safe for local dev — never commit real secrets):
 
 ```env
 # =============================================================================
@@ -93,31 +103,29 @@ VERSION=latest
 
 ### Frontend-only env (optional)
 
-If you need to override frontend env variables directly, create `frontend/.env.local`:
+Next.js automatically loads `.env` / `.env.local` files from **`frontend/`** (not the repo root) at dev-server startup. If you need to override a frontend variable directly, create `frontend/.env.local`:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8080
-
-# SSO / OIDC — omit to use username/password only
-NEXT_PUBLIC_OAUTH_CLIENT_ID=your-client-id
-NEXT_PUBLIC_OAUTH_AUTHORIZE_URL=https://your-provider.com/oauth/authorize
-NEXT_PUBLIC_OAUTH_REDIRECT_URI=http://localhost:3000/auth/callback
-NEXT_PUBLIC_OAUTH_SCOPES=openid email profile
 ```
+
+There is no `NEXT_PUBLIC_OAUTH_*` variable — SSO is entirely a **backend** concern. The frontend fetches SSO configuration at runtime from `GET /api/v1/config`, which reflects whatever `OAUTH_*` variables the backend has (see below); if `OAUTH_CLIENT_ID` isn't set on the backend, the "Sign in with SSO" button is hidden automatically.
 
 ### Backend-only env (optional)
 
-If you need to override backend env variables directly, create `backend/.env`:
+`backend/.env` is **not** loaded automatically (no dotenv dependency) — like the root `.env`, treat it as a template and `source`/`export` its contents into your shell before running the backend if you want these set:
 
 ```env
 PORT=8080
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/teams360?sslmode=disable
 GIN_MODE=debug
 
-# SSO — must match frontend SSO vars if set
+# SSO — optional, enables the "Sign in with SSO" flow
 OAUTH_CLIENT_ID=your-client-id
+OAUTH_AUTHORIZE_URL=https://your-provider.com/oauth/authorize
 OAUTH_TOKEN_URL=https://your-provider.com/oauth/token
 OAUTH_REDIRECT_URI=http://localhost:3000/auth/callback
+OAUTH_SCOPES=openid email profile
 ```
 
 ---
@@ -221,8 +229,15 @@ Backend uses `air` for hot reload; frontend uses Next.js's built-in fast refresh
 ### Check services are up
 
 ```bash
-# Backend health
-curl http://localhost:8080/api/v1/health-dimensions | jq '.[0].name'
+# Backend is up (this endpoint requires a JWT, so 401 — not 000/connection-refused — means it's listening)
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/v1/health-dimensions
+# Expected: 401
+
+# Backend health-dimensions with a real token (log in first to get one)
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"demo","password":"demo"}' | jq -r '.accessToken')
+curl -s http://localhost:8080/api/v1/health-dimensions -H "Authorization: Bearer $TOKEN" | jq '.[0].name'
 # Expected: "Mission" (or the first dimension name)
 
 # Frontend

@@ -21,19 +21,20 @@ Team Health Check supports two authentication methods simultaneously. Both coexi
 1. User submits credentials → POST /api/v1/auth/login
 2. auth_handler.go calls UserRepository.FindByUsername()
 3. bcrypt.CompareHashAndPassword(storedHash, submittedPassword)
-4. On match: return user object + set-cookie header
-5. Frontend (js-cookie) stores userId in cookie (expires 1 day)
-6. middleware.ts reads cookie on every page load
-7. Missing or invalid cookie → redirect to /login
+4. On match: backend issues a JWT access token + refresh token
+5. Frontend stores accessToken/refreshToken in localStorage, and the full
+   user object (URL-encoded JSON) in a `user` cookie (js-cookie, 7-day
+   expiry — max-age=604800)
+6. Every API request goes through `authenticatedFetch()`, which attaches
+   `Authorization: Bearer <accessToken>` and, on a 401, transparently calls
+   POST /api/v1/auth/refresh and retries the request once
+7. middleware.ts reads the `user` cookie on every page load for route
+   protection; missing/invalid cookie → redirect to /login
 ```
 
-**Password hashing:** bcrypt with cost factor of 12 (Go `golang.org/x/crypto/bcrypt`). Passwords are never stored in plain text.
+**Password hashing:** bcrypt with `bcrypt.DefaultCost` (cost factor 10, Go `golang.org/x/crypto/bcrypt`). Passwords are never stored in plain text.
 
-**Demo passwords:** All demo accounts use the string `"demo"` as the password (hashed). Admin uses `"admin"`. These are seeded via migration `000007`. Never use demo credentials in production.
-
----
-
-## Authentication & Cookie Specification
+**Demo passwords:** All demo accounts use the string `"demo"` as the password (hashed). Admin uses `"admin"`. The `admin` account is seeded by migration `000007` (runs in every environment); the remaining demo accounts (`vp`, `director1`, `manager1`, `teamlead1`, `demo`, etc.) are created by `SeedDemoData()` at application startup, which only runs when `APP_ENV=demo`. Never use demo credentials in production.
 
 ### Token & Session Storage
 
@@ -102,48 +103,50 @@ The frontend fetches these configuration parameters at runtime via `GET /api/v1/
 
 ### Hierarchy Levels
 
-Permissions are tied to `hierarchy_levels`, not to individual users. Each level has boolean flags:
+Permissions are tied to `hierarchy_levels`, not to individual users. Each level has boolean flags (see `DEFAULT_ORG_CONFIG` in `frontend/lib/org-config.ts`):
 
-| Permission flag | VP (L1) | Director (L2) | Manager (L3) | Team Lead (L4) | Team Member (L5) | Admin (L0) |
-|----------------|---------|--------------|-------------|---------------|-----------------|-----------|
-| `can_view_all_teams` | true | true | false | false | false | true |
-| `can_edit_teams` | false | false | false | false | false | true |
-| `can_manage_users` | false | false | false | false | false | true |
-| `can_take_survey` | false | false | false | true | true | false |
-| `can_view_analytics` | true | true | true | true | false | true |
-| `can_configure_system` | false | false | false | false | false | true |
-| `can_view_reports` | true | true | true | false | false | true |
-| `can_export_data` | true | true | false | false | false | true |
+| Permission flag | VP (L1) | Director (L2) | Manager (L3) | Team Lead (L4) | Team Member (L5) |
+|----------------|---------|--------------|-------------|---------------|-----------------|
+| `canViewAllTeams` | true | true | false | false | false |
+| `canEditTeams` | true | true | true | false | false |
+| `canManageUsers` | true | true | false | false | false |
+| `canConfigureSystem` | true | false | false | false | false |
+| `canViewReports` | true | true | true | true | false |
+| `canExportData` | true | true | true | true | false |
 
 These defaults can be modified via the Admin panel (Hierarchy Levels tab) without a code change.
 
+`isAdmin` is a separate boolean on the `User` record (`hierarchyLevelId === 'level-admin'`) — it is not a `hierarchyLevels` entry and is not part of this permission table. Admin users bypass hierarchy-level permission checks entirely.
+
+`canTakeSurvey` is likewise **not** a hierarchy-level permission — it's a per-user boolean (`user.canTakeSurvey`) that `frontend/middleware.ts` checks directly to gate access to `/survey`.
+
 ### Route Protection
 
-`frontend/middleware.ts` enforces routes based on the cookie:
+`frontend/middleware.ts` enforces routes based on the `user` cookie (simplified):
 
 ```typescript
-// Simplified logic
-if (!userId) return redirect('/login');
+// Simplified logic — see frontend/middleware.ts for the real implementation
+const userCookie = request.cookies.get('user');
+if (!userCookie && !isPublicPath) return redirect('/login');
 
-const user = await getUser(userId);
+const user = JSON.parse(userCookie.value);
 
-if (path.startsWith('/admin') && !user.permissions.canConfigureSystem) {
-  return redirect('/home');
+// On /login, redirect to the dashboard for the user's hierarchy level
+// (admin -> /admin, L1-L3 -> /manager, L4 -> /dashboard, L5 -> /home)
+
+// On /survey, redirect away unless the per-user flag allows it
+if (path === '/survey' && user.canTakeSurvey !== true) {
+  return redirect(/* role-appropriate dashboard */);
 }
-
-if (path.startsWith('/dashboard') && !user.permissions.canTakeSurvey) {
-  return redirect('/manager');
-}
-// ... etc.
 ```
 
 ### Team Access Control
 
 A user can access a team's data if **any** of the following is true:
 
-1. `can_view_all_teams` is true for their hierarchy level (VP, Director, Admin)
-2. The user is a member of the team (`team_members` table)
-3. The user appears in the team's `team_supervisors` chain
+1. `canViewAllTeams` is true for their hierarchy level (VP, Director; Admin bypasses this check entirely)
+2. The user is a member of the team (`team.memberIds`)
+3. The user appears in the team's `supervisorChain`
 
 Logic implemented in `frontend/lib/org-config.ts`:
 
@@ -171,38 +174,26 @@ Team Health Check implements a short-lived (1-hour), single-use token flow:
 
 Token table: `password_reset_tokens` — see [DB Schema](../architecture/db-schema.md#password_reset_tokens).
 
-**Note:** The reset endpoint is not yet rate-limited.
+---
+
+## Backend API Authorization
+
+The JWT/RBAC checks above are frontend route protection (which page loads). The Go API also enforces authorization independently at the handler level via middleware in `backend/interfaces/middleware/jwt_auth.go`:
+
+| Middleware | Enforces |
+|------------|----------|
+| `JWTAuthMiddleware` | Valid, non-expired access token required |
+| `OptionalJWTAuthMiddleware` | Attaches user context if a token is present, but doesn't require one |
+| `AdminOnlyMiddleware` | Caller's hierarchy level is `level-1` or `level-admin` (hardcoded level IDs, not the `canConfigureSystem` permission flag) |
+| `ManagerOrAboveMiddleware` | Caller's hierarchy level is `level-1`, `level-2`, `level-3`, or `level-admin` (hardcoded level IDs) |
+| `SameUserOrManagerMiddleware` | Caller is the target user or their manager |
+| `TeamMembershipMiddleware` | Caller is a member of, or supervisor over, the `:teamId` route param |
+
+`/api/v1/auth/login`, `/api/v1/auth/refresh`, and `/api/v1/auth/logout` are the only public routes (see `backend/interfaces/api/v1/auth_routes.go`); every other `/api/v1/*` route requires a valid JWT.
 
 ---
 
-## Cookie Specification
+## Known Gaps
 
-| Attribute | Value |
-|-----------|-------|
-| Name | `userId` (and optionally role metadata) |
-| Storage | js-cookie (client-side) |
-| Expiry | 1 day |
-| SameSite | Lax (default for js-cookie) |
-| Secure | TODO: enforce `Secure` flag in production |
-| HttpOnly | Not currently set (client JS reads the cookie) |
-
-**Roadmap:** Migrate from cookie-based userId to JWT tokens with refresh token rotation. See `CLAUDE.md` migration roadmap.
-
----
-
-## Future Improvements
-
-- [ ] JWT tokens with short expiry + refresh token rotation
-- [ ] Role-based API middleware in Go (currently enforced only on frontend)
-- [ ] Rate limiting on auth endpoints (see Known Issues #8)
-- [ ] `HttpOnly` and `Secure` cookie flags
-- [ ] HTTPS enforcement middleware in Gin for production
-
----
-
-## Questions for Product / Tech Leads
-
-- TODO: Confirm which OIDC provider is used per environment (Okta / Keycloak / other).
-- TODO: Should Admin-level users be allowed to take surveys? Currently their level has `can_take_survey = false`.
-- TODO: Is there a compliance requirement for session timeout (e.g., 8 hours idle)?
-- TODO: Confirm whether `HttpOnly` cookie flag will break any existing integrations before enabling.
+- The password reset endpoint (`/forgot-password`) is not yet rate-limited.
+- The `user` cookie does not set `HttpOnly` or `Secure` — it's read by client-side JS (`middleware.ts`, `frontend/lib/auth.ts`) and is not intended to hold the JWTs themselves.

@@ -1,22 +1,18 @@
 # Onboarding Checklist for New Developers
 
-Welcome to Team Health Check. This checklist walks you through Day 1 to Day 5. Complete each item in order. The goal: by end of Day 5 you understand the system, have a working local stack, and have made your first commit.
+Welcome to Team Health Check. This checklist walks you through Day 1 to Day 5 of contributing to this open-source project. Complete each item in order. The goal: by end of Day 5 you understand the system, have a working local stack, and have made your first pull request.
 
-Assign yourself as reviewer to a buddy engineer who will sign off the checklist at the end.
+This project has no shared Dev/Int/Prod environment, Jira board, or Slack workspace (see [Environment & Access](./environments.md)) — everything here happens against your local stack and GitHub. If your organization has deployed its own instance of Team Health Check with additional internal tooling, adapt the checklist below accordingly.
+
+Find a buddy engineer (another contributor/maintainer) willing to review your first PR and answer questions.
 
 ---
 
-## Before Day 1 — Access Provisioning
+## Before Day 1 — Access
 
-Request these before your first day (or on Day 1 morning). Estimated approval time: 2–24 hours.
-
-- [ ] GitHub access: request read + write access to `github.com/guidewire-oss/teams360`
-- [ ] Slack: join `#team360-eng`, `#team360-bugs`, `#team360-frontend`, `#team360-backend`
-- [ ] TODO: Request access to the Dev environment database (see [Environment & Access](./environments.md))
-- [ ] TODO: Request VPN / bastion access if required for Dev environment
-- [ ] TODO: Request Jira project access — board name: TODO
-- [ ] TODO: Request GitHub Actions view access if org-level permissions are restricted
-- [ ] TODO: If SSO is configured, confirm your corporate email is provisioned in the Dev environment's Team Health Check user table
+- [ ] Fork or clone `github.com/guidewire-oss/teams360` (public repo — no approval needed)
+- [ ] Read [CONTRIBUTING.md](https://github.com/guidewire-oss/teams360/blob/main/CONTRIBUTING.md) for the contribution workflow
+- [ ] Join [GitHub Discussions](https://github.com/guidewire-oss/teams360/discussions) if you have questions before Day 1
 
 ---
 
@@ -59,14 +55,14 @@ Request these before your first day (or on Day 1 morning). Estimated approval ti
   1. Submit a survey as `demo/demo`
   2. Find the session: `SELECT * FROM health_check_sessions ORDER BY created_at DESC LIMIT 1`
   3. Find its responses: `SELECT * FROM health_check_responses WHERE session_id = '<id from above>'`
-- [ ] Read [Authentication & Authorization](./auth.md) — understand cookie flow and RBAC
+- [ ] Read [Authentication & Authorization](./auth.md) — understand the JWT + cookie flow and RBAC
 
 ---
 
 ## Day 3 — Backend Deep Dive
 
 - [ ] Trace the survey submission flow in code:
-  - `frontend/app/survey/page.tsx` → POST → `frontend/app/api/v1/health-checks/route.ts`
+  - `frontend/app/survey/page.tsx` → `authenticatedFetch()` POST directly to the Go backend (`NEXT_PUBLIC_API_URL` — there is no Next.js proxy route)
   - `backend/interfaces/api/v1/health_check_handler.go` → `SubmitHealthCheck()`
   - `backend/infrastructure/persistence/postgres/health_check_repository.go` → `Save()`
 - [ ] Read `backend/interfaces/api/v1/auth_handler.go` — understand login and SSO callback handlers
@@ -106,7 +102,7 @@ Request these before your first day (or on Day 1 morning). Estimated approval ti
 
 ## Day 5 — First Contribution
 
-- [ ] Pick a "good first issue" from the Jira board (ask your buddy)
+- [ ] Pick a [`good first issue`](https://github.com/guidewire-oss/teams360/labels/good%20first%20issue) from GitHub Issues (ask your buddy if none look approachable)
 - [ ] Create a feature branch:
   ```bash
   git checkout -b your-name/issue-description
@@ -126,26 +122,13 @@ Request these before your first day (or on Day 1 morning). Estimated approval ti
   make test-e2e      # E2E tests
   ```
 - [ ] Open a Pull Request with:
-  - Link to Jira ticket
+  - Link to the GitHub issue it closes
   - Description of what changed and why
   - Screenshot or curl output demonstrating the fix
-- [ ] Request review from your buddy and one other engineer
+- [ ] Request review from your buddy (and any other maintainer, per [CONTRIBUTING.md](https://github.com/guidewire-oss/teams360/blob/main/CONTRIBUTING.md))
 
 ---
 
-## Onboarding Sign-Off
-
-Your buddy engineer signs off when:
-
-- [ ] Local stack runs without errors
-- [ ] Developer can explain the three critical flows (auth, survey submission, manager dashboard) without the docs
-- [ ] Developer has merged at least one PR (even a small fix)
-- [ ] Developer knows how to run E2E tests locally
-- [ ] Developer knows where to find known issues and how to add a new one
-
-**Buddy sign-off**: ___________________________________ Date: ___________
-
----
 
 ## Useful References
 
@@ -154,18 +137,14 @@ Your buddy engineer signs off when:
 | Repo | `github.com/guidewire-oss/teams360` |
 | Local frontend | http://localhost:3000 |
 | Local backend | http://localhost:8080 |
-| Dev environment | TODO — see [environments.md](./environments.md) |
-| Jira board | TODO |
-| Slack | `#team360-eng` |
+| Environments (there's only Local — see why) | [environments.md](./environments.md) |
+| GitHub Discussions | https://github.com/guidewire-oss/teams360/discussions |
 | Grafana (local) | http://localhost:3001 (after `make run-with-otel`) |
 | API docs | [api/endpoints.md](../api/endpoints.md) |
 | Makefile reference | [development/makefile.md](../development/makefile.md) |
 
 ---
 
-## Questions for Product / Tech Leads
+## If Your Organization Runs Its Own Instance
 
-- TODO: Confirm the "good first issue" label in Jira so new starters know where to start.
-- TODO: Is there a mandatory security training or compliance acknowledgement before Dev DB access is granted?
-- TODO: Confirm the buddy / mentor assignment process for new team members.
-- TODO: Should new developers have write access to the main branch immediately, or only after 30 days?
+If you're onboarding onto a fork or internal deployment of Team Health Check with its own Jira board, Slack workspace, shared Dev/Int/Prod environments, or security/compliance requirements, add those steps here — they don't exist in the upstream OSS project and can't be documented generically.
