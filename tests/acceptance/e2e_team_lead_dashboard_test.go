@@ -99,6 +99,27 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 
 		// Dismiss onboarding modal if shown (fresh Playwright context has empty localStorage)
 		dismissOnboardingIfVisible(page)
+
+		// e2e_lead1 is also assigned as team lead by other specs in this suite
+		// (e.g. cadence, member-management, admin edit/assign/delete-team tests),
+		// so the dashboard's default team (user's alphabetically-first led team)
+		// is not guaranteed to be testTeamID. Pin the team explicitly whenever
+		// the multi-team selector is present so this suite's assertions always
+		// target the fixture data seeded for testTeamID.
+		teamSelector := page.Locator("[data-testid='team-selector']")
+		if visible, _ := teamSelector.IsVisible(); visible {
+			_, err = teamSelector.SelectOption(playwright.SelectOptionValues{
+				Values: &[]string{testTeamID},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Wait for the dashboard to reload data for the selected team
+			Eventually(func() bool {
+				loadingEl := page.Locator("text=Loading...")
+				visible, _ := loadingEl.IsVisible()
+				return !visible
+			}, 10*time.Second, 500*time.Millisecond).Should(BeTrue(), "Dashboard should finish reloading after team switch")
+		}
 	}
 
 	Describe("Radar Chart View", func() {
