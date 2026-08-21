@@ -78,6 +78,9 @@ COPY --from=backend-builder /backend/infrastructure/persistence/postgres/migrati
 # Copy static frontend into ./web/ (Go serves from WEB_DIR, default ./web)
 COPY --from=frontend-builder /frontend/out/ ./web/
 
+# Copy license and notice files for redistribution/compliance tooling
+COPY LICENSE NOTICE /licenses/
+
 USER appuser
 
 EXPOSE 8080
