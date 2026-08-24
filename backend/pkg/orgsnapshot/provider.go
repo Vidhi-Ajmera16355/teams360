@@ -8,3 +8,4 @@ type SnapshotProvider interface {
 	// The caller is responsible for validating the returned snapshot.
 	GetOrganizationSnapshot(ctx context.Context, version string) (Snapshot, error)
 }
+ 

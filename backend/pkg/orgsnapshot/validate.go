@@ -4,7 +4,7 @@ import "fmt"
 
 // EntityType identifies the record type referenced by a ValidationError.
 type EntityType string
-
+ 
 const (
 	EntityUser                  EntityType = "user"
 	EntityTeam                  EntityType = "team"

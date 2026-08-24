@@ -67,3 +67,4 @@ type Snapshot struct {
 	// OwnedFields lists fields the provider claims authority over.
 	OwnedFields []OwnedField `json:"ownedFields,omitempty"`
 }
+ 

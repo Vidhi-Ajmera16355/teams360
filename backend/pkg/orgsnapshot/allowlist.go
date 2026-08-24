@@ -2,7 +2,7 @@ package orgsnapshot
 
 // OwnedField identifies a contract field a provider may own.
 type OwnedField string
-
+ 
 const (
 	// FieldTeamHealthCheckEnabled identifies Team.HealthCheckEnabled.
 	FieldTeamHealthCheckEnabled OwnedField = "team.healthCheckEnabled"
