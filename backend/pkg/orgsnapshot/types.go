@@ -13,8 +13,8 @@ const ContractVersion = "1.0"
 
 // User represents a person from an external organization data source.
 type User struct {
-	// ExternalID is the stable identifier within the provider namespace.
-	ExternalID string `json:"externalId"`
+	// ID is the identifier shared with the domain user (see domain/user.User.ID).
+	ID string `json:"id"`
 
 	// DisplayName is the user's human-readable name.
 	DisplayName string `json:"displayName,omitempty"`
@@ -25,14 +25,14 @@ type User struct {
 
 // Team represents a team from an external organization data source.
 type Team struct {
-	// ExternalID is the stable identifier within the provider namespace.
-	ExternalID string `json:"externalId"`
+	// ID is the identifier shared with the domain team (see domain/team.Team.ID).
+	ID string `json:"id"`
 
 	// Name is the team's human-readable name.
 	Name string `json:"name"`
 
-	// ParentTeamExternalID references the parent team, if any.
-	ParentTeamExternalID string `json:"parentTeamExternalId,omitempty"`
+	// ParentTeamID references the parent team, if any.
+	ParentTeamID string `json:"parentTeamId,omitempty"`
 
 	// HealthCheckEnabled is tri-state:
 	// true = enabled, false = disabled, nil = not supplied.
@@ -41,14 +41,14 @@ type Team struct {
 
 // Membership associates a user with a team.
 type Membership struct {
-	UserExternalID string `json:"userExternalId"`
-	TeamExternalID string `json:"teamExternalId"`
+	UserID string `json:"userId"`
+	TeamID string `json:"teamId"`
 }
 
 // ReportingRelationship represents a manager -> report relationship.
 type ReportingRelationship struct {
-	ManagerExternalID string `json:"managerExternalId"`
-	ReportExternalID  string `json:"reportExternalId"`
+	ManagerID string `json:"managerId"`
+	ReportID  string `json:"reportId"`
 }
 
 // Snapshot is a complete provider organization snapshot.

@@ -15,21 +15,21 @@ func validSnapshot() orgsnapshot.Snapshot {
 		ContractVersion: orgsnapshot.ContractVersion,
 		GeneratedAt:     time.Unix(0, 0).UTC(),
 		Teams: []orgsnapshot.Team{
-			{ExternalID: "team-1", Name: "Platform"},
-			{ExternalID: "team-2", Name: "Growth", ParentTeamExternalID: "team-1", HealthCheckEnabled: boolPtr(true)},
-			{ExternalID: "team-3", Name: "Data", HealthCheckEnabled: boolPtr(false)},
-			{ExternalID: "team-4", Name: "Infra"}, // HealthCheckEnabled omitted (nil)
+			{ID: "team-1", Name: "Platform"},
+			{ID: "team-2", Name: "Growth", ParentTeamID: "team-1", HealthCheckEnabled: boolPtr(true)},
+			{ID: "team-3", Name: "Data", HealthCheckEnabled: boolPtr(false)},
+			{ID: "team-4", Name: "Infra"}, // HealthCheckEnabled omitted (nil)
 		},
 		Users: []orgsnapshot.User{
-			{ExternalID: "user-1", DisplayName: "Alice", Email: "alice@example.com"},
-			{ExternalID: "user-2", DisplayName: "Bob"},
+			{ID: "user-1", DisplayName: "Alice", Email: "alice@example.com"},
+			{ID: "user-2", DisplayName: "Bob"},
 		},
 		Memberships: []orgsnapshot.Membership{
-			{UserExternalID: "user-1", TeamExternalID: "team-1"},
-			{UserExternalID: "user-2", TeamExternalID: "team-2"},
+			{UserID: "user-1", TeamID: "team-1"},
+			{UserID: "user-2", TeamID: "team-2"},
 		},
 		ReportingRelationships: []orgsnapshot.ReportingRelationship{
-			{ManagerExternalID: "user-1", ReportExternalID: "user-2"},
+			{ManagerID: "user-1", ReportID: "user-2"},
 		},
 		OwnedFields: []orgsnapshot.OwnedField{orgsnapshot.FieldTeamHealthCheckEnabled},
 	}
@@ -47,7 +47,7 @@ func TestValidate_HealthCheckEnabledTriState(t *testing.T) {
 
 	var enabled, disabled, omitted *bool
 	for i := range snap.Teams {
-		switch snap.Teams[i].ExternalID {
+		switch snap.Teams[i].ID {
 		case "team-2":
 			enabled = snap.Teams[i].HealthCheckEnabled
 		case "team-3":
@@ -68,62 +68,62 @@ func TestValidate_HealthCheckEnabledTriState(t *testing.T) {
 	}
 }
 
-func TestValidate_MissingUserExternalID(t *testing.T) {
+func TestValidate_MissingUserID(t *testing.T) {
 	snap := validSnapshot()
 	snap.Users = append(snap.Users, orgsnapshot.User{DisplayName: "No ID"})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityUser, "externalId", "required") {
-		t.Fatalf("expected a missing-externalId user error, got %+v", errs)
+	if !hasError(errs, orgsnapshot.EntityUser, "id", "required") {
+		t.Fatalf("expected a missing-id user error, got %+v", errs)
 	}
 }
 
-func TestValidate_MissingTeamExternalID(t *testing.T) {
+func TestValidate_MissingTeamID(t *testing.T) {
 	snap := validSnapshot()
 	snap.Teams = append(snap.Teams, orgsnapshot.Team{Name: "No ID"})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityTeam, "externalId", "required") {
-		t.Fatalf("expected a missing-externalId team error, got %+v", errs)
+	if !hasError(errs, orgsnapshot.EntityTeam, "id", "required") {
+		t.Fatalf("expected a missing-id team error, got %+v", errs)
 	}
 }
 
-func TestValidate_DuplicateUserExternalID(t *testing.T) {
+func TestValidate_DuplicateUserID(t *testing.T) {
 	snap := validSnapshot()
-	snap.Users = append(snap.Users, orgsnapshot.User{ExternalID: "user-1", DisplayName: "Duplicate Alice"})
+	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-1", DisplayName: "Duplicate Alice"})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityUser, "externalId", "duplicate") {
-		t.Fatalf("expected a duplicate user externalId error, got %+v", errs)
+	if !hasError(errs, orgsnapshot.EntityUser, "id", "duplicate") {
+		t.Fatalf("expected a duplicate user id error, got %+v", errs)
 	}
 }
 
-func TestValidate_DuplicateTeamExternalID(t *testing.T) {
+func TestValidate_DuplicateTeamID(t *testing.T) {
 	snap := validSnapshot()
-	snap.Teams = append(snap.Teams, orgsnapshot.Team{ExternalID: "team-1", Name: "Duplicate Platform"})
+	snap.Teams = append(snap.Teams, orgsnapshot.Team{ID: "team-1", Name: "Duplicate Platform"})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityTeam, "externalId", "duplicate") {
-		t.Fatalf("expected a duplicate team externalId error, got %+v", errs)
+	if !hasError(errs, orgsnapshot.EntityTeam, "id", "duplicate") {
+		t.Fatalf("expected a duplicate team id error, got %+v", errs)
 	}
 }
 
 func TestValidate_MembershipUnknownUser(t *testing.T) {
 	snap := validSnapshot()
-	snap.Memberships = append(snap.Memberships, orgsnapshot.Membership{UserExternalID: "ghost-user", TeamExternalID: "team-1"})
+	snap.Memberships = append(snap.Memberships, orgsnapshot.Membership{UserID: "ghost-user", TeamID: "team-1"})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityMembership, "userExternalId", "unknown user") {
+	if !hasError(errs, orgsnapshot.EntityMembership, "userId", "unknown user") {
 		t.Fatalf("expected a membership unknown-user error, got %+v", errs)
 	}
 }
 
 func TestValidate_MembershipUnknownTeam(t *testing.T) {
 	snap := validSnapshot()
-	snap.Memberships = append(snap.Memberships, orgsnapshot.Membership{UserExternalID: "user-1", TeamExternalID: "ghost-team"})
+	snap.Memberships = append(snap.Memberships, orgsnapshot.Membership{UserID: "user-1", TeamID: "ghost-team"})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityMembership, "teamExternalId", "unknown team") {
+	if !hasError(errs, orgsnapshot.EntityMembership, "teamId", "unknown team") {
 		t.Fatalf("expected a membership unknown-team error, got %+v", errs)
 	}
 }
@@ -131,25 +131,25 @@ func TestValidate_MembershipUnknownTeam(t *testing.T) {
 func TestValidate_ReportingRelationshipUnknownEndpoints(t *testing.T) {
 	snap := validSnapshot()
 	snap.ReportingRelationships = append(snap.ReportingRelationships, orgsnapshot.ReportingRelationship{
-		ManagerExternalID: "ghost-manager",
-		ReportExternalID:  "ghost-report",
+		ManagerID: "ghost-manager",
+		ReportID:  "ghost-report",
 	})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityReportingRelationship, "managerExternalId", "unknown user") {
+	if !hasError(errs, orgsnapshot.EntityReportingRelationship, "managerId", "unknown user") {
 		t.Fatalf("expected a reporting-relationship unknown-manager error, got %+v", errs)
 	}
-	if !hasError(errs, orgsnapshot.EntityReportingRelationship, "reportExternalId", "unknown user") {
+	if !hasError(errs, orgsnapshot.EntityReportingRelationship, "reportId", "unknown user") {
 		t.Fatalf("expected a reporting-relationship unknown-report error, got %+v", errs)
 	}
 }
 
 func TestValidate_TeamParentUnknown(t *testing.T) {
 	snap := validSnapshot()
-	snap.Teams = append(snap.Teams, orgsnapshot.Team{ExternalID: "team-5", Name: "Orphan", ParentTeamExternalID: "ghost-team"})
+	snap.Teams = append(snap.Teams, orgsnapshot.Team{ID: "team-5", Name: "Orphan", ParentTeamID: "ghost-team"})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityTeam, "parentTeamExternalId", "unknown team") {
+	if !hasError(errs, orgsnapshot.EntityTeam, "parentTeamId", "unknown team") {
 		t.Fatalf("expected a team parent-reference error, got %+v", errs)
 	}
 }
@@ -167,7 +167,7 @@ func TestValidate_UnsupportedOwnedField(t *testing.T) {
 func TestValidate_RecordLevelErrorsIdentifyEntityAndField(t *testing.T) {
 	snap := orgsnapshot.Snapshot{
 		ContractVersion: orgsnapshot.ContractVersion,
-		Users:           []orgsnapshot.User{{ExternalID: ""}},
+		Users:           []orgsnapshot.User{{ID: ""}},
 	}
 
 	errs := snap.Validate()

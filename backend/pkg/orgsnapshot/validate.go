@@ -35,118 +35,118 @@ func (s Snapshot) Validate() []ValidationError {
 
 	userIDs := make(map[string]bool, len(s.Users))
 	for i, u := range s.Users {
-		if u.ExternalID == "" {
+		if u.ID == "" {
 			errs = append(errs, ValidationError{
 				Entity:     EntityUser,
 				Identifier: fmt.Sprintf("index %d", i),
-				Field:      "externalId",
-				Message:    "externalId is required and must be non-empty",
+				Field:      "id",
+				Message:    "id is required and must be non-empty",
 			})
 			continue
 		}
-		if userIDs[u.ExternalID] {
+		if userIDs[u.ID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityUser,
-				Identifier: u.ExternalID,
-				Field:      "externalId",
-				Message:    "duplicate externalId among users",
+				Identifier: u.ID,
+				Field:      "id",
+				Message:    "duplicate id among users",
 			})
 			continue
 		}
-		userIDs[u.ExternalID] = true
+		userIDs[u.ID] = true
 	}
 
 	teamIDs := make(map[string]bool, len(s.Teams))
 	for i, t := range s.Teams {
-		if t.ExternalID == "" {
+		if t.ID == "" {
 			errs = append(errs, ValidationError{
 				Entity:     EntityTeam,
 				Identifier: fmt.Sprintf("index %d", i),
-				Field:      "externalId",
-				Message:    "externalId is required and must be non-empty",
+				Field:      "id",
+				Message:    "id is required and must be non-empty",
 			})
 			continue
 		}
-		if teamIDs[t.ExternalID] {
+		if teamIDs[t.ID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityTeam,
-				Identifier: t.ExternalID,
-				Field:      "externalId",
-				Message:    "duplicate externalId among teams",
+				Identifier: t.ID,
+				Field:      "id",
+				Message:    "duplicate id among teams",
 			})
 			continue
 		}
-		teamIDs[t.ExternalID] = true
+		teamIDs[t.ID] = true
 	}
 
 	for _, t := range s.Teams {
-		if t.ExternalID == "" {
+		if t.ID == "" {
 			continue
 		}
-		if t.ParentTeamExternalID != "" && !teamIDs[t.ParentTeamExternalID] {
+		if t.ParentTeamID != "" && !teamIDs[t.ParentTeamID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityTeam,
-				Identifier: t.ExternalID,
-				Field:      "parentTeamExternalId",
+				Identifier: t.ID,
+				Field:      "parentTeamId",
 				Message: fmt.Sprintf(
-					"references unknown team externalId %q",
-					t.ParentTeamExternalID,
+					"references unknown team id %q",
+					t.ParentTeamID,
 				),
 			})
 		}
 	}
 
 	for _, m := range s.Memberships {
-		identifier := fmt.Sprintf("%s->%s", m.UserExternalID, m.TeamExternalID)
+		identifier := fmt.Sprintf("%s->%s", m.UserID, m.TeamID)
 
-		if !userIDs[m.UserExternalID] {
+		if !userIDs[m.UserID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityMembership,
 				Identifier: identifier,
-				Field:      "userExternalId",
+				Field:      "userId",
 				Message: fmt.Sprintf(
-					"references unknown user externalId %q",
-					m.UserExternalID,
+					"references unknown user id %q",
+					m.UserID,
 				),
 			})
 		}
 
-		if !teamIDs[m.TeamExternalID] {
+		if !teamIDs[m.TeamID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityMembership,
 				Identifier: identifier,
-				Field:      "teamExternalId",
+				Field:      "teamId",
 				Message: fmt.Sprintf(
-					"references unknown team externalId %q",
-					m.TeamExternalID,
+					"references unknown team id %q",
+					m.TeamID,
 				),
 			})
 		}
 	}
 
 	for _, r := range s.ReportingRelationships {
-		identifier := fmt.Sprintf("%s->%s", r.ManagerExternalID, r.ReportExternalID)
+		identifier := fmt.Sprintf("%s->%s", r.ManagerID, r.ReportID)
 
-		if !userIDs[r.ManagerExternalID] {
+		if !userIDs[r.ManagerID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityReportingRelationship,
 				Identifier: identifier,
-				Field:      "managerExternalId",
+				Field:      "managerId",
 				Message: fmt.Sprintf(
-					"references unknown user externalId %q",
-					r.ManagerExternalID,
+					"references unknown user id %q",
+					r.ManagerID,
 				),
 			})
 		}
 
-		if !userIDs[r.ReportExternalID] {
+		if !userIDs[r.ReportID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityReportingRelationship,
 				Identifier: identifier,
-				Field:      "reportExternalId",
+				Field:      "reportId",
 				Message: fmt.Sprintf(
-					"references unknown user externalId %q",
-					r.ReportExternalID,
+					"references unknown user id %q",
+					r.ReportID,
 				),
 			})
 		}
