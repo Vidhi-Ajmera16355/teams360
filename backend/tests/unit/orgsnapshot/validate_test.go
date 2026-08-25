@@ -8,7 +8,8 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/pkg/orgsnapshot"
 )
 
-func boolPtr(b bool) *bool { return &b }
+func boolPtr(b bool) *bool       { return &b }
+func stringPtr(s string) *string { return &s }
 
 func validSnapshot() orgsnapshot.Snapshot {
 	return orgsnapshot.Snapshot{
@@ -16,20 +17,17 @@ func validSnapshot() orgsnapshot.Snapshot {
 		GeneratedAt:     time.Unix(0, 0).UTC(),
 		Teams: []orgsnapshot.Team{
 			{ID: "team-1", Name: "Platform"},
-			{ID: "team-2", Name: "Growth", ParentTeamID: "team-1", HealthCheckEnabled: boolPtr(true)},
+			{ID: "team-2", Name: "Growth", HealthCheckEnabled: boolPtr(true)},
 			{ID: "team-3", Name: "Data", HealthCheckEnabled: boolPtr(false)},
 			{ID: "team-4", Name: "Infra"}, // HealthCheckEnabled omitted (nil)
 		},
 		Users: []orgsnapshot.User{
-			{ID: "user-1", DisplayName: "Alice", Email: "alice@example.com"},
-			{ID: "user-2", DisplayName: "Bob"},
+			{ID: "user-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.com", IsActive: boolPtr(true)},
+			{ID: "user-2", Username: "bob", DisplayName: "Bob", ReportsTo: stringPtr("user-1")},
 		},
 		Memberships: []orgsnapshot.Membership{
-			{UserID: "user-1", TeamID: "team-1"},
-			{UserID: "user-2", TeamID: "team-2"},
-		},
-		ReportingRelationships: []orgsnapshot.ReportingRelationship{
-			{ManagerID: "user-1", ReportID: "user-2"},
+			{UserID: "user-1", TeamID: "team-1", Role: "lead"},
+			{UserID: "user-2", TeamID: "team-2", Role: "member"},
 		},
 		OwnedFields: []orgsnapshot.OwnedField{orgsnapshot.FieldTeamHealthCheckEnabled},
 	}
@@ -128,29 +126,23 @@ func TestValidate_MembershipUnknownTeam(t *testing.T) {
 	}
 }
 
-func TestValidate_ReportingRelationshipUnknownEndpoints(t *testing.T) {
+func TestValidate_ReportsToUnknownManager(t *testing.T) {
 	snap := validSnapshot()
-	snap.ReportingRelationships = append(snap.ReportingRelationships, orgsnapshot.ReportingRelationship{
-		ManagerID: "ghost-manager",
-		ReportID:  "ghost-report",
-	})
+	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", ReportsTo: stringPtr("ghost-manager")})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityReportingRelationship, "managerId", "unknown user") {
-		t.Fatalf("expected a reporting-relationship unknown-manager error, got %+v", errs)
-	}
-	if !hasError(errs, orgsnapshot.EntityReportingRelationship, "reportId", "unknown user") {
-		t.Fatalf("expected a reporting-relationship unknown-report error, got %+v", errs)
+	if !hasError(errs, orgsnapshot.EntityUser, "reportsTo", "unknown user") {
+		t.Fatalf("expected a reportsTo unknown-manager error, got %+v", errs)
 	}
 }
 
-func TestValidate_TeamParentUnknown(t *testing.T) {
+func TestValidate_ReportsToSelf(t *testing.T) {
 	snap := validSnapshot()
-	snap.Teams = append(snap.Teams, orgsnapshot.Team{ID: "team-5", Name: "Orphan", ParentTeamID: "ghost-team"})
+	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", ReportsTo: stringPtr("user-3")})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityTeam, "parentTeamId", "unknown team") {
-		t.Fatalf("expected a team parent-reference error, got %+v", errs)
+	if !hasError(errs, orgsnapshot.EntityUser, "reportsTo", "own manager") {
+		t.Fatalf("expected a self-manager error, got %+v", errs)
 	}
 }
 

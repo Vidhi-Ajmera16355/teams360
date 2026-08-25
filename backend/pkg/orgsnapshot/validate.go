@@ -6,11 +6,10 @@ import "fmt"
 type EntityType string
 
 const (
-	EntityUser                  EntityType = "user"
-	EntityTeam                  EntityType = "team"
-	EntityMembership            EntityType = "membership"
-	EntityReportingRelationship EntityType = "reportingRelationship"
-	EntitySnapshot              EntityType = "snapshot"
+	EntityUser       EntityType = "user"
+	EntityTeam       EntityType = "team"
+	EntityMembership EntityType = "membership"
+	EntitySnapshot   EntityType = "snapshot"
 )
 
 // ValidationError represents a single validation failure.
@@ -79,23 +78,6 @@ func (s Snapshot) Validate() []ValidationError {
 		teamIDs[t.ID] = true
 	}
 
-	for _, t := range s.Teams {
-		if t.ID == "" {
-			continue
-		}
-		if t.ParentTeamID != "" && !teamIDs[t.ParentTeamID] {
-			errs = append(errs, ValidationError{
-				Entity:     EntityTeam,
-				Identifier: t.ID,
-				Field:      "parentTeamId",
-				Message: fmt.Sprintf(
-					"references unknown team id %q",
-					t.ParentTeamID,
-				),
-			})
-		}
-	}
-
 	for _, m := range s.Memberships {
 		identifier := fmt.Sprintf("%s->%s", m.UserID, m.TeamID)
 
@@ -124,29 +106,30 @@ func (s Snapshot) Validate() []ValidationError {
 		}
 	}
 
-	for _, r := range s.ReportingRelationships {
-		identifier := fmt.Sprintf("%s->%s", r.ManagerID, r.ReportID)
+	for _, u := range s.Users {
+		if u.ReportsTo == nil {
+			continue
+		}
+		managerID := *u.ReportsTo
 
-		if !userIDs[r.ManagerID] {
+		if managerID == u.ID {
 			errs = append(errs, ValidationError{
-				Entity:     EntityReportingRelationship,
-				Identifier: identifier,
-				Field:      "managerId",
-				Message: fmt.Sprintf(
-					"references unknown user id %q",
-					r.ManagerID,
-				),
+				Entity:     EntityUser,
+				Identifier: u.ID,
+				Field:      "reportsTo",
+				Message:    "user cannot be their own manager",
 			})
+			continue
 		}
 
-		if !userIDs[r.ReportID] {
+		if !userIDs[managerID] {
 			errs = append(errs, ValidationError{
-				Entity:     EntityReportingRelationship,
-				Identifier: identifier,
-				Field:      "reportId",
+				Entity:     EntityUser,
+				Identifier: u.ID,
+				Field:      "reportsTo",
 				Message: fmt.Sprintf(
 					"references unknown user id %q",
-					r.ReportID,
+					managerID,
 				),
 			})
 		}
