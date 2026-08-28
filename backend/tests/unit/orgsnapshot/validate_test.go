@@ -22,7 +22,7 @@ func validSnapshot() orgsnapshot.Snapshot {
 			{ID: "team-4", Name: "Infra"}, // HealthCheckEnabled omitted (nil)
 		},
 		Users: []orgsnapshot.User{
-			{ID: "user-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.com", IsActive: boolPtr(true)},
+			{ID: "user-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.com"},
 			{ID: "user-2", Username: "bob", DisplayName: "Bob", ReportsTo: stringPtr("user-1")},
 		},
 		Memberships: []orgsnapshot.Membership{
