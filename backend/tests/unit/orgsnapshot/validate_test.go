@@ -26,8 +26,8 @@ func validSnapshot() orgsnapshot.Snapshot {
 			{ID: "user-2", Username: "bob", DisplayName: "Bob", ReportsTo: stringPtr("user-1")},
 		},
 		Memberships: []orgsnapshot.Membership{
-			{UserID: "user-1", TeamID: "team-1", Role: "lead"},
-			{UserID: "user-2", TeamID: "team-2", Role: "member"},
+			{UserID: "user-1", TeamID: "team-1"},
+			{UserID: "user-2", TeamID: "team-2"},
 		},
 		OwnedFields: []orgsnapshot.OwnedField{orgsnapshot.FieldTeamHealthCheckEnabled},
 	}

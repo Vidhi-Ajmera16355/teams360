@@ -27,7 +27,6 @@ type Team struct {
 type Membership struct {
 	UserID string `json:"userId"`
 	TeamID string `json:"teamId"`
-	Role   string `json:"role,omitempty"` // scoped to this membership, e.g. "lead" or "member".
 }
 
 // Snapshot is a complete provider organization snapshot.
