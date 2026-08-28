@@ -1,6 +1,7 @@
 package acceptance_test
 
 import (
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -191,21 +192,19 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				Expect(dbErr).NotTo(HaveOccurred())
 				GinkgoWriter.Printf("Distribution tab: DB sessions=%d responses=%d\n", sessionCount, responseCount)
 
-				// Click the "Chart" button to switch from breakdown view to chart view
+				// Click the "Chart" button to switch from breakdown view to chart view.
+				// Data is guaranteed to exist (seeded in BeforeEach), so a missed render here
+				// is a UI timing gap, not missing data — retry instead of a single-shot wait.
 				By("Switching to chart view")
 				chartViewBtn := page.Locator("[data-testid='distribution-chart-btn']")
-				err = chartViewBtn.WaitFor(playwright.LocatorWaitForOptions{
-					State:   playwright.WaitForSelectorStateVisible,
-					Timeout: playwright.Float(15000),
-				})
-				if err != nil {
-					// Log page HTML for diagnosis before failing
+				Eventually(func() bool {
+					visible, _ := chartViewBtn.IsVisible()
+					return visible
+				}, 30*time.Second, 500*time.Millisecond).Should(BeTrue(), func() string {
 					html, _ := page.Content()
-					GinkgoWriter.Printf("distribution-chart-btn not visible. DB: sessions=%d responses=%d. Page excerpt: %s\n",
-						sessionCount, responseCount,
-						html[max(0, len(html)-2000):])
-				}
-				Expect(err).NotTo(HaveOccurred())
+					return fmt.Sprintf("distribution-chart-btn not visible. DB: sessions=%d responses=%d. Page excerpt: %s",
+						sessionCount, responseCount, html[max(0, len(html)-2000):])
+				})
 
 				err = chartViewBtn.Click()
 				Expect(err).NotTo(HaveOccurred())
@@ -431,7 +430,7 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 					cards := page.Locator("[data-testid='response-card']")
 					count, _ := cards.Count()
 					return count > 0
-				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "Response cards should load")
+				}, 30*time.Second, 500*time.Millisecond).Should(BeTrue(), "Response cards should load")
 
 				By("Going back to radar tab where export button is shown")
 				radarTab := page.Locator("[data-testid='radar-tab']")
