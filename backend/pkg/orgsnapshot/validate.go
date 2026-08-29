@@ -2,14 +2,6 @@ package orgsnapshot
 
 import "fmt"
 
-var supportedHierarchyLevels = map[HierarchyLevel]bool{
-	HierarchyLevelExecutive: true,
-	HierarchyLevelDirector:  true,
-	HierarchyLevelManager:   true,
-	HierarchyLevelTeamLead:  true,
-	HierarchyLevelMember:    true,
-}
-
 // EntityType identifies the record type referenced by a ValidationError.
 type EntityType string
 
@@ -63,18 +55,16 @@ func (s Snapshot) Validate() []ValidationError {
 				Field:      "id",
 				Message:    "id is required and must be non-empty",
 			})
-			continue
-		}
-		if userIDs[u.ID] {
+		} else if userIDs[u.ID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityUser,
 				Identifier: u.ID,
 				Field:      "id",
 				Message:    "duplicate id among users",
 			})
-			continue
+		} else {
+			userIDs[u.ID] = true
 		}
-		userIDs[u.ID] = true
 		if u.Username == "" {
 			errs = append(errs, ValidationError{
 				Entity:     EntityUser,
@@ -91,12 +81,12 @@ func (s Snapshot) Validate() []ValidationError {
 				Message:    "displayName is required and must be non-empty",
 			})
 		}
-		if !supportedHierarchyLevels[u.HierarchyLevel] {
+		if u.HierarchyLevelID == "" {
 			errs = append(errs, ValidationError{
 				Entity:     EntityUser,
 				Identifier: u.ID,
-				Field:      "hierarchyLevel",
-				Message:    fmt.Sprintf("unsupported hierarchy level %q", u.HierarchyLevel),
+				Field:      "hierarchyLevelId",
+				Message:    "hierarchyLevelId is required and must be non-empty",
 			})
 		}
 		if u.Email == "" {
@@ -118,18 +108,16 @@ func (s Snapshot) Validate() []ValidationError {
 				Field:      "id",
 				Message:    "id is required and must be non-empty",
 			})
-			continue
-		}
-		if teamIDs[t.ID] {
+		} else if teamIDs[t.ID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityTeam,
 				Identifier: t.ID,
 				Field:      "id",
 				Message:    "duplicate id among teams",
 			})
-			continue
+		} else {
+			teamIDs[t.ID] = true
 		}
-		teamIDs[t.ID] = true
 		if t.Name == "" {
 			errs = append(errs, ValidationError{
 				Entity:     EntityTeam,
@@ -140,10 +128,15 @@ func (s Snapshot) Validate() []ValidationError {
 		}
 	}
 
-	membershipIDs := make(map[string]bool, len(s.Memberships))
+	type membershipKey struct {
+		userID string
+		teamID string
+	}
+	membershipIDs := make(map[membershipKey]bool, len(s.Memberships))
 	for _, m := range s.Memberships {
 		identifier := fmt.Sprintf("%s->%s", m.UserID, m.TeamID)
-		if membershipIDs[identifier] {
+		key := membershipKey{userID: m.UserID, teamID: m.TeamID}
+		if membershipIDs[key] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityMembership,
 				Identifier: identifier,
@@ -151,7 +144,7 @@ func (s Snapshot) Validate() []ValidationError {
 				Message:    "duplicate membership",
 			})
 		} else {
-			membershipIDs[identifier] = true
+			membershipIDs[key] = true
 		}
 
 		if !userIDs[m.UserID] {
@@ -221,13 +214,45 @@ func (s Snapshot) Validate() []ValidationError {
 		if t.TeamLeadID == nil {
 			continue
 		}
-		if *t.TeamLeadID == "" || !userIDs[*t.TeamLeadID] {
+		leadID := *t.TeamLeadID
+		if leadID == "" || !userIDs[leadID] {
 			errs = append(errs, ValidationError{
 				Entity:     EntityTeam,
 				Identifier: t.ID,
 				Field:      "teamLeadId",
-				Message:    fmt.Sprintf("references unknown user id %q", *t.TeamLeadID),
+				Message:    fmt.Sprintf("references unknown user id %q", leadID),
 			})
+			continue
+		}
+		if !membershipIDs[membershipKey{userID: leadID, teamID: t.ID}] {
+			errs = append(errs, ValidationError{
+				Entity:     EntityTeam,
+				Identifier: t.ID,
+				Field:      "teamLeadId",
+				Message:    fmt.Sprintf("team lead %q must be a member of the team", leadID),
+			})
+		}
+	}
+
+	reportsTo := make(map[string]string, len(s.Users))
+	for _, u := range s.Users {
+		if u.ID != "" && u.ReportsToID != nil && *u.ReportsToID != "" && userIDs[*u.ReportsToID] {
+			reportsTo[u.ID] = *u.ReportsToID
+		}
+	}
+	for userID := range reportsTo {
+		seen := make(map[string]bool)
+		for current := userID; current != ""; current = reportsTo[current] {
+			if seen[current] {
+				errs = append(errs, ValidationError{
+					Entity:     EntityUser,
+					Identifier: userID,
+					Field:      "reportsToId",
+					Message:    "reporting hierarchy contains a cycle",
+				})
+				break
+			}
+			seen[current] = true
 		}
 	}
 

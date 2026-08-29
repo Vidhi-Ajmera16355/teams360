@@ -10,25 +10,14 @@ import (
 // ContractVersion is the current snapshot contract version.
 const ContractVersion = "1.0"
 
-// HierarchyLevel is a normalized organization level understood by every provider.
-type HierarchyLevel string
-
-const (
-	HierarchyLevelExecutive HierarchyLevel = "executive"
-	HierarchyLevelDirector  HierarchyLevel = "director"
-	HierarchyLevelManager   HierarchyLevel = "manager"
-	HierarchyLevelTeamLead  HierarchyLevel = "teamLead"
-	HierarchyLevelMember    HierarchyLevel = "member"
-)
-
 // User represents a person from an external organization data source.
 type User struct {
-	ID             string         `json:"id"`
-	Username       string         `json:"username"`
-	DisplayName    string         `json:"displayName"`
-	Email          string         `json:"email"`
-	HierarchyLevel HierarchyLevel `json:"hierarchyLevel"`
-	ReportsToID    *string        `json:"reportsToId"` // Nil identifies a root user with no manager.
+	ID               string  `json:"id"`
+	Username         string  `json:"username"`
+	DisplayName      string  `json:"displayName"`
+	Email            string  `json:"email"`
+	HierarchyLevelID string  `json:"hierarchyLevelId"`
+	ReportsToID      *string `json:"reportsToId"` // Nil identifies a root user with no manager.
 }
 
 // UnmarshalJSON requires reportsToId to be present while allowing null for root users.

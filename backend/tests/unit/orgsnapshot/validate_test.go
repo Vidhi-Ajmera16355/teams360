@@ -23,8 +23,8 @@ func validSnapshot() orgsnapshot.Snapshot {
 			{ID: "team-4", Name: "Infra"}, // HealthCheckEnabled omitted (nil)
 		},
 		Users: []orgsnapshot.User{
-			{ID: "user-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.com", HierarchyLevel: orgsnapshot.HierarchyLevelManager},
-			{ID: "user-2", Username: "bob", DisplayName: "Bob", Email: "bob@example.com", ReportsToID: stringPtr("user-1"), HierarchyLevel: orgsnapshot.HierarchyLevelMember},
+			{ID: "user-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.com", HierarchyLevelID: "level-3"},
+			{ID: "user-2", Username: "bob", DisplayName: "Bob", Email: "bob@example.com", ReportsToID: stringPtr("user-1"), HierarchyLevelID: "level-5"},
 		},
 		Memberships: []orgsnapshot.Membership{
 			{UserID: "user-1", TeamID: "team-1"},
@@ -75,10 +75,10 @@ func TestValidate_HealthCheckEnabledTriState(t *testing.T) {
 
 func TestUserJSON_RequiresReportsToID(t *testing.T) {
 	var user orgsnapshot.User
-	if err := json.Unmarshal([]byte(`{"id":"user-1","username":"alice","displayName":"Alice","email":"alice@example.com","hierarchyLevel":"manager"}`), &user); err == nil {
+	if err := json.Unmarshal([]byte(`{"id":"user-1","username":"alice","displayName":"Alice","email":"alice@example.com","hierarchyLevelId":"level-3"}`), &user); err == nil || err.Error() != "reportsToId is required" {
 		t.Fatal("expected missing reportsToId to fail JSON decoding")
 	}
-	if err := json.Unmarshal([]byte(`{"id":"user-1","username":"alice","displayName":"Alice","email":"alice@example.com","hierarchyLevel":"manager","reportsToId":null}`), &user); err != nil {
+	if err := json.Unmarshal([]byte(`{"id":"user-1","username":"alice","displayName":"Alice","email":"alice@example.com","hierarchyLevelId":"level-3","reportsToId":null}`), &user); err != nil {
 		t.Fatalf("expected null reportsToId to identify a root user: %v", err)
 	}
 }
@@ -145,7 +145,7 @@ func TestValidate_MembershipUnknownTeam(t *testing.T) {
 
 func TestValidate_ReportsToUnknownManager(t *testing.T) {
 	snap := validSnapshot()
-	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", Username: "cara", DisplayName: "Cara", Email: "cara@example.com", HierarchyLevel: orgsnapshot.HierarchyLevelMember, ReportsToID: stringPtr("ghost-manager")})
+	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", Username: "cara", DisplayName: "Cara", Email: "cara@example.com", HierarchyLevelID: "level-5", ReportsToID: stringPtr("ghost-manager")})
 
 	errs := snap.Validate()
 	if !hasError(errs, orgsnapshot.EntityUser, "reportsToId", "unknown user") {
@@ -155,7 +155,7 @@ func TestValidate_ReportsToUnknownManager(t *testing.T) {
 
 func TestValidate_ReportsToSelf(t *testing.T) {
 	snap := validSnapshot()
-	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", Username: "cara", DisplayName: "Cara", Email: "cara@example.com", HierarchyLevel: orgsnapshot.HierarchyLevelMember, ReportsToID: stringPtr("user-3")})
+	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", Username: "cara", DisplayName: "Cara", Email: "cara@example.com", HierarchyLevelID: "level-5", ReportsToID: stringPtr("user-3")})
 
 	errs := snap.Validate()
 	if !hasError(errs, orgsnapshot.EntityUser, "reportsToId", "own manager") {
@@ -190,13 +190,51 @@ func TestValidate_UnknownTeamLead(t *testing.T) {
 	}
 }
 
-func TestValidate_UnsupportedHierarchyLevel(t *testing.T) {
+func TestValidate_MissingHierarchyLevelID(t *testing.T) {
 	snap := validSnapshot()
-	snap.Users[0].HierarchyLevel = "engineering-manager"
+	snap.Users[0].HierarchyLevelID = ""
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityUser, "hierarchyLevel", "unsupported") {
-		t.Fatalf("expected an unsupported hierarchy-level error, got %+v", errs)
+	if !hasError(errs, orgsnapshot.EntityUser, "hierarchyLevelId", "required") {
+		t.Fatalf("expected a missing hierarchy-level ID error, got %+v", errs)
+	}
+}
+
+func TestValidate_ReportingCycle(t *testing.T) {
+	snap := validSnapshot()
+	snap.Users[0].ReportsToID = stringPtr("user-2")
+
+	if !hasError(snap.Validate(), orgsnapshot.EntityUser, "reportsToId", "cycle") {
+		t.Fatal("expected reporting cycle error")
+	}
+}
+
+func TestValidate_TeamLeadMustBeMember(t *testing.T) {
+	snap := validSnapshot()
+	snap.Teams[0].TeamLeadID = stringPtr("user-2")
+
+	if !hasError(snap.Validate(), orgsnapshot.EntityTeam, "teamLeadId", "must be a member") {
+		t.Fatal("expected team lead membership error")
+	}
+}
+
+func TestValidate_DistinctMembershipIDsContainingArrow(t *testing.T) {
+	snap := validSnapshot()
+	snap.Users = append(snap.Users,
+		orgsnapshot.User{ID: "a->b", Username: "arrow", DisplayName: "Arrow", Email: "arrow@example.com", HierarchyLevelID: "level-5"},
+		orgsnapshot.User{ID: "a", Username: "short", DisplayName: "Short", Email: "short@example.com", HierarchyLevelID: "level-5"},
+	)
+	snap.Teams = append(snap.Teams,
+		orgsnapshot.Team{ID: "c", Name: "C"},
+		orgsnapshot.Team{ID: "b->c", Name: "BC"},
+	)
+	snap.Memberships = append(snap.Memberships,
+		orgsnapshot.Membership{UserID: "a->b", TeamID: "c"},
+		orgsnapshot.Membership{UserID: "a", TeamID: "b->c"},
+	)
+
+	if hasError(snap.Validate(), orgsnapshot.EntityMembership, "userId,teamId", "duplicate") {
+		t.Fatal("distinct membership pairs must not be treated as duplicates")
 	}
 }
 
@@ -209,6 +247,7 @@ func TestValidate_RequiredUserFields(t *testing.T) {
 		{name: "username", field: "username", clear: func(u *orgsnapshot.User) { u.Username = "" }},
 		{name: "display name", field: "displayName", clear: func(u *orgsnapshot.User) { u.DisplayName = "" }},
 		{name: "email", field: "email", clear: func(u *orgsnapshot.User) { u.Email = "" }},
+		{name: "hierarchy level", field: "hierarchyLevelId", clear: func(u *orgsnapshot.User) { u.HierarchyLevelID = "" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
