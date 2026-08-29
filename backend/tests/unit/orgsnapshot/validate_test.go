@@ -1,6 +1,7 @@
 package orgsnapshot_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ func stringPtr(s string) *string { return &s }
 func validSnapshot() orgsnapshot.Snapshot {
 	return orgsnapshot.Snapshot{
 		ContractVersion: orgsnapshot.ContractVersion,
-		GeneratedAt:     time.Unix(0, 0).UTC(),
+		GeneratedAt:     time.Unix(1, 0).UTC(),
 		Teams: []orgsnapshot.Team{
 			{ID: "team-1", Name: "Platform"},
 			{ID: "team-2", Name: "Growth", HealthCheckEnabled: boolPtr(true)},
@@ -22,14 +23,13 @@ func validSnapshot() orgsnapshot.Snapshot {
 			{ID: "team-4", Name: "Infra"}, // HealthCheckEnabled omitted (nil)
 		},
 		Users: []orgsnapshot.User{
-			{ID: "user-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.com"},
-			{ID: "user-2", Username: "bob", DisplayName: "Bob", ReportsTo: stringPtr("user-1")},
+			{ID: "user-1", Username: "alice", DisplayName: "Alice", Email: "alice@example.com", HierarchyLevel: orgsnapshot.HierarchyLevelManager},
+			{ID: "user-2", Username: "bob", DisplayName: "Bob", Email: "bob@example.com", ReportsToID: stringPtr("user-1"), HierarchyLevel: orgsnapshot.HierarchyLevelMember},
 		},
 		Memberships: []orgsnapshot.Membership{
 			{UserID: "user-1", TeamID: "team-1"},
 			{UserID: "user-2", TeamID: "team-2"},
 		},
-		OwnedFields: []orgsnapshot.OwnedField{orgsnapshot.FieldTeamHealthCheckEnabled},
 	}
 }
 
@@ -41,7 +41,14 @@ func TestValidate_HappyPath(t *testing.T) {
 }
 
 func TestValidate_HealthCheckEnabledTriState(t *testing.T) {
-	snap := validSnapshot()
+	data, err := json.Marshal(validSnapshot())
+	if err != nil {
+		t.Fatalf("marshal snapshot: %v", err)
+	}
+	var snap orgsnapshot.Snapshot
+	if err := json.Unmarshal(data, &snap); err != nil {
+		t.Fatalf("unmarshal snapshot: %v", err)
+	}
 
 	var enabled, disabled, omitted *bool
 	for i := range snap.Teams {
@@ -63,6 +70,16 @@ func TestValidate_HealthCheckEnabledTriState(t *testing.T) {
 	}
 	if omitted != nil {
 		t.Fatalf("expected team-4 HealthCheckEnabled to be nil (omitted), got %v", *omitted)
+	}
+}
+
+func TestUserJSON_RequiresReportsToID(t *testing.T) {
+	var user orgsnapshot.User
+	if err := json.Unmarshal([]byte(`{"id":"user-1","username":"alice","displayName":"Alice","email":"alice@example.com","hierarchyLevel":"manager"}`), &user); err == nil {
+		t.Fatal("expected missing reportsToId to fail JSON decoding")
+	}
+	if err := json.Unmarshal([]byte(`{"id":"user-1","username":"alice","displayName":"Alice","email":"alice@example.com","hierarchyLevel":"manager","reportsToId":null}`), &user); err != nil {
+		t.Fatalf("expected null reportsToId to identify a root user: %v", err)
 	}
 }
 
@@ -128,31 +145,79 @@ func TestValidate_MembershipUnknownTeam(t *testing.T) {
 
 func TestValidate_ReportsToUnknownManager(t *testing.T) {
 	snap := validSnapshot()
-	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", ReportsTo: stringPtr("ghost-manager")})
+	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", Username: "cara", DisplayName: "Cara", Email: "cara@example.com", HierarchyLevel: orgsnapshot.HierarchyLevelMember, ReportsToID: stringPtr("ghost-manager")})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityUser, "reportsTo", "unknown user") {
+	if !hasError(errs, orgsnapshot.EntityUser, "reportsToId", "unknown user") {
 		t.Fatalf("expected a reportsTo unknown-manager error, got %+v", errs)
 	}
 }
 
 func TestValidate_ReportsToSelf(t *testing.T) {
 	snap := validSnapshot()
-	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", ReportsTo: stringPtr("user-3")})
+	snap.Users = append(snap.Users, orgsnapshot.User{ID: "user-3", Username: "cara", DisplayName: "Cara", Email: "cara@example.com", HierarchyLevel: orgsnapshot.HierarchyLevelMember, ReportsToID: stringPtr("user-3")})
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntityUser, "reportsTo", "own manager") {
+	if !hasError(errs, orgsnapshot.EntityUser, "reportsToId", "own manager") {
 		t.Fatalf("expected a self-manager error, got %+v", errs)
 	}
 }
 
-func TestValidate_UnsupportedOwnedField(t *testing.T) {
+func TestValidate_UnsupportedContractVersion(t *testing.T) {
 	snap := validSnapshot()
-	snap.OwnedFields = append(snap.OwnedFields, orgsnapshot.OwnedField("team.someUnsupportedField"))
+	snap.ContractVersion = "2.0"
+
+	if !hasError(snap.Validate(), orgsnapshot.EntitySnapshot, "contractVersion", "unsupported") {
+		t.Fatal("expected unsupported contract version error")
+	}
+}
+
+func TestValidate_DuplicateMembership(t *testing.T) {
+	snap := validSnapshot()
+	snap.Memberships = append(snap.Memberships, snap.Memberships[0])
+
+	if !hasError(snap.Validate(), orgsnapshot.EntityMembership, "userId,teamId", "duplicate") {
+		t.Fatal("expected duplicate membership error")
+	}
+}
+
+func TestValidate_UnknownTeamLead(t *testing.T) {
+	snap := validSnapshot()
+	snap.Teams[0].TeamLeadID = stringPtr("ghost-user")
+
+	if !hasError(snap.Validate(), orgsnapshot.EntityTeam, "teamLeadId", "unknown user") {
+		t.Fatal("expected unknown team lead error")
+	}
+}
+
+func TestValidate_UnsupportedHierarchyLevel(t *testing.T) {
+	snap := validSnapshot()
+	snap.Users[0].HierarchyLevel = "engineering-manager"
 
 	errs := snap.Validate()
-	if !hasError(errs, orgsnapshot.EntitySnapshot, "ownedFields", "unsupported field") {
-		t.Fatalf("expected an unsupported-owned-field error, got %+v", errs)
+	if !hasError(errs, orgsnapshot.EntityUser, "hierarchyLevel", "unsupported") {
+		t.Fatalf("expected an unsupported hierarchy-level error, got %+v", errs)
+	}
+}
+
+func TestValidate_RequiredUserFields(t *testing.T) {
+	tests := []struct {
+		name  string
+		field string
+		clear func(*orgsnapshot.User)
+	}{
+		{name: "username", field: "username", clear: func(u *orgsnapshot.User) { u.Username = "" }},
+		{name: "display name", field: "displayName", clear: func(u *orgsnapshot.User) { u.DisplayName = "" }},
+		{name: "email", field: "email", clear: func(u *orgsnapshot.User) { u.Email = "" }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snap := validSnapshot()
+			tt.clear(&snap.Users[0])
+			if !hasError(snap.Validate(), orgsnapshot.EntityUser, tt.field, "required") {
+				t.Fatalf("expected required %s error", tt.field)
+			}
+		})
 	}
 }
 

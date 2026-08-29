@@ -1,26 +1,64 @@
 // Package orgsnapshot defines the provider-neutral organization snapshot contract.
 package orgsnapshot
 
-import "time"
+import (
+	"encoding/json"
+	"errors"
+	"time"
+)
 
 // ContractVersion is the current snapshot contract version.
 const ContractVersion = "1.0"
 
+// HierarchyLevel is a normalized organization level understood by every provider.
+type HierarchyLevel string
+
+const (
+	HierarchyLevelExecutive HierarchyLevel = "executive"
+	HierarchyLevelDirector  HierarchyLevel = "director"
+	HierarchyLevelManager   HierarchyLevel = "manager"
+	HierarchyLevelTeamLead  HierarchyLevel = "teamLead"
+	HierarchyLevelMember    HierarchyLevel = "member"
+)
+
 // User represents a person from an external organization data source.
 type User struct {
-	ID          string  `json:"id"`
-	Username    string  `json:"username,omitempty"`
-	DisplayName string  `json:"displayName,omitempty"`
-	Email       string  `json:"email,omitempty"`
-	ReportsTo   *string `json:"reportsTo,omitempty"` // ID of this user's direct manager, if any.
-	Role        string  `json:"role,omitempty"`      // provider's own org role/level name, not a Team360 hierarchy level ID.
+	ID             string         `json:"id"`
+	Username       string         `json:"username"`
+	DisplayName    string         `json:"displayName"`
+	Email          string         `json:"email"`
+	HierarchyLevel HierarchyLevel `json:"hierarchyLevel"`
+	ReportsToID    *string        `json:"reportsToId"` // Nil identifies a root user with no manager.
+}
+
+// UnmarshalJSON requires reportsToId to be present while allowing null for root users.
+func (u *User) UnmarshalJSON(data []byte) error {
+	type userAlias User
+	var decoded struct {
+		userAlias
+		ReportsToID json.RawMessage `json:"reportsToId"`
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	if decoded.ReportsToID == nil {
+		return errors.New("reportsToId is required")
+	}
+	if string(decoded.ReportsToID) != "null" {
+		if err := json.Unmarshal(decoded.ReportsToID, &decoded.userAlias.ReportsToID); err != nil {
+			return err
+		}
+	}
+	*u = User(decoded.userAlias)
+	return nil
 }
 
 // Team represents a team from an external organization data source.
 type Team struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	HealthCheckEnabled *bool  `json:"healthCheckEnabled,omitempty"` // tri-state: true=enabled, false=disabled, nil=not supplied.
+	ID                 string  `json:"id"`
+	Name               string  `json:"name"`
+	TeamLeadID         *string `json:"teamLeadId,omitempty"`         // Omitted preserves the existing THC-managed value.
+	HealthCheckEnabled *bool   `json:"healthCheckEnabled,omitempty"` // tri-state: true=enabled, false=disabled, nil=not supplied.
 }
 
 // Membership associates a user with a team.
@@ -36,5 +74,4 @@ type Snapshot struct {
 	Teams           []Team       `json:"teams"`
 	Users           []User       `json:"users"`
 	Memberships     []Membership `json:"memberships"`
-	OwnedFields     []OwnedField `json:"ownedFields,omitempty"` // fields the provider claims authority over.
 }

@@ -2,6 +2,14 @@ package orgsnapshot
 
 import "fmt"
 
+var supportedHierarchyLevels = map[HierarchyLevel]bool{
+	HierarchyLevelExecutive: true,
+	HierarchyLevelDirector:  true,
+	HierarchyLevelManager:   true,
+	HierarchyLevelTeamLead:  true,
+	HierarchyLevelMember:    true,
+}
+
 // EntityType identifies the record type referenced by a ValidationError.
 type EntityType string
 
@@ -31,6 +39,20 @@ func (e ValidationError) Error() string {
 // all validation errors found.
 func (s Snapshot) Validate() []ValidationError {
 	var errs []ValidationError
+	if s.ContractVersion != ContractVersion {
+		errs = append(errs, ValidationError{
+			Entity:  EntitySnapshot,
+			Field:   "contractVersion",
+			Message: fmt.Sprintf("unsupported contract version %q; expected %q", s.ContractVersion, ContractVersion),
+		})
+	}
+	if s.GeneratedAt.IsZero() {
+		errs = append(errs, ValidationError{
+			Entity:  EntitySnapshot,
+			Field:   "generatedAt",
+			Message: "generatedAt is required",
+		})
+	}
 
 	userIDs := make(map[string]bool, len(s.Users))
 	for i, u := range s.Users {
@@ -53,6 +75,38 @@ func (s Snapshot) Validate() []ValidationError {
 			continue
 		}
 		userIDs[u.ID] = true
+		if u.Username == "" {
+			errs = append(errs, ValidationError{
+				Entity:     EntityUser,
+				Identifier: u.ID,
+				Field:      "username",
+				Message:    "username is required and must be non-empty",
+			})
+		}
+		if u.DisplayName == "" {
+			errs = append(errs, ValidationError{
+				Entity:     EntityUser,
+				Identifier: u.ID,
+				Field:      "displayName",
+				Message:    "displayName is required and must be non-empty",
+			})
+		}
+		if !supportedHierarchyLevels[u.HierarchyLevel] {
+			errs = append(errs, ValidationError{
+				Entity:     EntityUser,
+				Identifier: u.ID,
+				Field:      "hierarchyLevel",
+				Message:    fmt.Sprintf("unsupported hierarchy level %q", u.HierarchyLevel),
+			})
+		}
+		if u.Email == "" {
+			errs = append(errs, ValidationError{
+				Entity:     EntityUser,
+				Identifier: u.ID,
+				Field:      "email",
+				Message:    "email is required and must be non-empty",
+			})
+		}
 	}
 
 	teamIDs := make(map[string]bool, len(s.Teams))
@@ -76,10 +130,29 @@ func (s Snapshot) Validate() []ValidationError {
 			continue
 		}
 		teamIDs[t.ID] = true
+		if t.Name == "" {
+			errs = append(errs, ValidationError{
+				Entity:     EntityTeam,
+				Identifier: t.ID,
+				Field:      "name",
+				Message:    "name is required and must be non-empty",
+			})
+		}
 	}
 
+	membershipIDs := make(map[string]bool, len(s.Memberships))
 	for _, m := range s.Memberships {
 		identifier := fmt.Sprintf("%s->%s", m.UserID, m.TeamID)
+		if membershipIDs[identifier] {
+			errs = append(errs, ValidationError{
+				Entity:     EntityMembership,
+				Identifier: identifier,
+				Field:      "userId,teamId",
+				Message:    "duplicate membership",
+			})
+		} else {
+			membershipIDs[identifier] = true
+		}
 
 		if !userIDs[m.UserID] {
 			errs = append(errs, ValidationError{
@@ -107,16 +180,25 @@ func (s Snapshot) Validate() []ValidationError {
 	}
 
 	for _, u := range s.Users {
-		if u.ReportsTo == nil {
+		if u.ReportsToID == nil {
 			continue
 		}
-		managerID := *u.ReportsTo
+		managerID := *u.ReportsToID
+		if managerID == "" {
+			errs = append(errs, ValidationError{
+				Entity:     EntityUser,
+				Identifier: u.ID,
+				Field:      "reportsToId",
+				Message:    "reportsToId must be null or a non-empty user id",
+			})
+			continue
+		}
 
 		if managerID == u.ID {
 			errs = append(errs, ValidationError{
 				Entity:     EntityUser,
 				Identifier: u.ID,
-				Field:      "reportsTo",
+				Field:      "reportsToId",
 				Message:    "user cannot be their own manager",
 			})
 			continue
@@ -126,7 +208,7 @@ func (s Snapshot) Validate() []ValidationError {
 			errs = append(errs, ValidationError{
 				Entity:     EntityUser,
 				Identifier: u.ID,
-				Field:      "reportsTo",
+				Field:      "reportsToId",
 				Message: fmt.Sprintf(
 					"references unknown user id %q",
 					managerID,
@@ -135,16 +217,16 @@ func (s Snapshot) Validate() []ValidationError {
 		}
 	}
 
-	for _, field := range s.OwnedFields {
-		if !IsAllowedOwnedField(field) {
+	for _, t := range s.Teams {
+		if t.TeamLeadID == nil {
+			continue
+		}
+		if *t.TeamLeadID == "" || !userIDs[*t.TeamLeadID] {
 			errs = append(errs, ValidationError{
-				Entity:     EntitySnapshot,
-				Identifier: string(field),
-				Field:      "ownedFields",
-				Message: fmt.Sprintf(
-					"provider claims ownership of unsupported field %q",
-					field,
-				),
+				Entity:     EntityTeam,
+				Identifier: t.ID,
+				Field:      "teamLeadId",
+				Message:    fmt.Sprintf("references unknown user id %q", *t.TeamLeadID),
 			})
 		}
 	}
