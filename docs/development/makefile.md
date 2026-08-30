@@ -91,7 +91,7 @@ make run
 
 **Output:**
 ```
-Starting Team360...
+Starting Team Health Check...
 
   Frontend: http://localhost:3000
   Backend:  http://localhost:8080
@@ -363,7 +363,7 @@ make status
 
 **Output example:**
 ```
-Team360 Project Status
+Team Health Check Project Status
 
 Frontend (Next.js 15 + TypeScript):
   Location: ./frontend

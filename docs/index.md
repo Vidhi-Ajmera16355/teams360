@@ -5,7 +5,7 @@
 ## Table of Contents
 
 - **[Overview](./overview.md)**
-  What Team360 does, who uses it, key problems it solves, and how it fits in the internal tooling ecosystem.
+  What Team Health Check does, who uses it, key problems it solves, and how it fits in the internal tooling ecosystem.
 
 - **[Architecture & Key Flows](./architecture/overview.md)**
   System design (frontend to backend to DB), DDD layer breakdown, and sequence walkthroughs for the three most critical flows: authentication, survey submission, and manager dashboard. Includes troubleshooting matrix.

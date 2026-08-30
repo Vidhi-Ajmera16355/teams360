@@ -154,29 +154,8 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 
-				// Check that we have chart content, not the "no data" message
-				noDataMsg := page.Locator("[data-testid='radar-chart-section'] >> text=No health data available")
-				noDataVisible, _ := noDataMsg.IsVisible()
-				if noDataVisible {
-					// Data didn't load — log debug info
-					GinkgoWriter.Printf("WARNING: No health data available. Data may not have loaded.\n")
-
-					// Verify the test data exists in the database
-					var sessionCount int
-					err = db.QueryRow("SELECT COUNT(*) FROM health_check_sessions WHERE team_id = $1 AND completed = true", testTeamID).Scan(&sessionCount)
-					Expect(err).NotTo(HaveOccurred())
-					GinkgoWriter.Printf("DB session count for %s: %d\n", testTeamID, sessionCount)
-
-					var responseCount int
-					err = db.QueryRow("SELECT COUNT(*) FROM health_check_responses WHERE session_id LIKE 'e2e_tl_%'").Scan(&responseCount)
-					Expect(err).NotTo(HaveOccurred())
-					GinkgoWriter.Printf("DB response count for e2e_tl_* sessions: %d\n", responseCount)
-				}
-
-				// Either the chart or the "no data" message should be visible
-				chartOrNoData := page.Locator("[data-testid='radar-chart'], .recharts-radar, svg:has(.recharts-polar-grid)").
-					Or(page.Locator("text=No health data available"))
-				err = chartOrNoData.First().WaitFor(playwright.LocatorWaitForOptions{
+				chart := page.Locator("[data-testid='radar-chart'], .recharts-radar, svg:has(.recharts-polar-grid)")
+				err = chart.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
 				})
@@ -287,10 +266,8 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 
-				// Check for either response cards or "no responses" message
-				responseContent := page.Locator("[data-testid='response-card']").
-					Or(page.Locator("text=No individual responses available"))
-				err = responseContent.First().WaitFor(playwright.LocatorWaitForOptions{
+				responseCards := page.Locator("[data-testid='response-card']")
+				err = responseCards.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
 				})
@@ -316,15 +293,15 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				_ = responsesTab.Click()
 				time.Sleep(1 * time.Second)
 
-				By("Verifying Individual Responses tab content is displayed")
-				responsesSection := page.Locator("[data-testid='responses-section']")
-				err = responsesSection.WaitFor(playwright.LocatorWaitForOptions{
+				By("Verifying a seeded team member comment is displayed")
+				comment := page.GetByText("Great clarity on our mission")
+				err = comment.WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
 				})
 				Expect(err).NotTo(HaveOccurred())
 
-				GinkgoWriter.Printf("Individual Responses tab content displayed successfully\n")
+				GinkgoWriter.Printf("Team member comment displayed successfully\n")
 			})
 		})
 	})

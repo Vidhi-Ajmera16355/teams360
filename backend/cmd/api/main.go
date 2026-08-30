@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"mime"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -269,6 +270,10 @@ func main() {
 					c.File(filePath)
 					return
 				}
+				if redirectPath, ok := directoryRedirectPath(urlPath, true); ok {
+					c.Redirect(http.StatusMovedPermanently, redirectPath)
+					return
+				}
 				// Directory request (e.g. /docs/api/): serve its index.html
 				indexPath := filepath.Join(filePath, "index.html")
 				if info, statErr := os.Stat(indexPath); statErr == nil && !info.IsDir() {
@@ -319,4 +324,11 @@ func main() {
 	// Wait for interrupt signal
 	<-quit
 	log.Info("shutting down server gracefully...")
+}
+
+func directoryRedirectPath(urlPath string, isDir bool) (string, bool) {
+	if isDir && !strings.HasSuffix(urlPath, "/") {
+		return urlPath + "/", true
+	}
+	return "", false
 }
