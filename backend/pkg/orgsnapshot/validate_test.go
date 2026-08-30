@@ -73,10 +73,10 @@ func TestValidate_HealthCheckEnabledTriState(t *testing.T) {
 	}
 }
 
-func TestUserJSON_RequiresReportsToID(t *testing.T) {
+func TestUserJSON_AllowsMissingOrNullReportsToID(t *testing.T) {
 	var user orgsnapshot.User
-	if err := json.Unmarshal([]byte(`{"id":"user-1","username":"alice","displayName":"Alice","email":"alice@example.com","hierarchyLevelId":"level-3"}`), &user); err == nil || err.Error() != "reportsToId is required" {
-		t.Fatal("expected missing reportsToId to fail JSON decoding")
+	if err := json.Unmarshal([]byte(`{"id":"user-1","username":"alice","displayName":"Alice","email":"alice@example.com","hierarchyLevelId":"level-3"}`), &user); err != nil {
+		t.Fatalf("expected missing reportsToId to identify a root user: %v", err)
 	}
 	if err := json.Unmarshal([]byte(`{"id":"user-1","username":"alice","displayName":"Alice","email":"alice@example.com","hierarchyLevelId":"level-3","reportsToId":null}`), &user); err != nil {
 		t.Fatalf("expected null reportsToId to identify a root user: %v", err)
@@ -209,6 +209,40 @@ func TestValidate_ReportingCycle(t *testing.T) {
 	}
 }
 
+func TestValidate_ReportingCycleOnlyIdentifiesCycleMembers(t *testing.T) {
+	snap := validSnapshot()
+	snap.Users = []orgsnapshot.User{
+		{ID: "b", Username: "user_b", DisplayName: "B", Email: "b@example.com", HierarchyLevelID: "level-3", ReportsToID: stringPtr("c")},
+		{ID: "c", Username: "user_c", DisplayName: "C", Email: "c@example.com", HierarchyLevelID: "level-3", ReportsToID: stringPtr("b")},
+		{ID: "a", Username: "user_a", DisplayName: "A", Email: "a@example.com", HierarchyLevelID: "level-5", ReportsToID: stringPtr("b")},
+		{ID: "a2", Username: "user_a2", DisplayName: "A2", Email: "a2@example.com", HierarchyLevelID: "level-5", ReportsToID: stringPtr("a")},
+	}
+
+	errIDs := make([]string, 0)
+	for _, err := range snap.Validate() {
+		if err.Field == "reportsToId" && strings.Contains(err.Message, "cycle") {
+			errIDs = append(errIDs, err.Identifier)
+		}
+	}
+	if strings.Join(errIDs, ",") != "b,c" {
+		t.Fatalf("expected only cycle members in snapshot order, got %v", errIDs)
+	}
+}
+
+func TestValidate_ReportsToSelfHasOneError(t *testing.T) {
+	snap := validSnapshot()
+	snap.Users[0].ReportsToID = stringPtr("user-1")
+	count := 0
+	for _, err := range snap.Validate() {
+		if err.Identifier == "user-1" && err.Field == "reportsToId" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected one self-manager error, got %d", count)
+	}
+}
+
 func TestValidate_TeamLeadMustBeMember(t *testing.T) {
 	snap := validSnapshot()
 	snap.Teams[0].TeamLeadID = stringPtr("user-2")
@@ -240,23 +274,54 @@ func TestValidate_DistinctMembershipIDsContainingArrow(t *testing.T) {
 
 func TestValidate_RequiredUserFields(t *testing.T) {
 	tests := []struct {
-		name  string
-		field string
-		clear func(*orgsnapshot.User)
+		name            string
+		field           string
+		messageContains string
+		clear           func(*orgsnapshot.User)
 	}{
-		{name: "username", field: "username", clear: func(u *orgsnapshot.User) { u.Username = "" }},
-		{name: "display name", field: "displayName", clear: func(u *orgsnapshot.User) { u.DisplayName = "" }},
-		{name: "email", field: "email", clear: func(u *orgsnapshot.User) { u.Email = "" }},
-		{name: "hierarchy level", field: "hierarchyLevelId", clear: func(u *orgsnapshot.User) { u.HierarchyLevelID = "" }},
+		{name: "username", field: "username", messageContains: "2-50", clear: func(u *orgsnapshot.User) { u.Username = "" }},
+		{name: "display name", field: "displayName", messageContains: "required", clear: func(u *orgsnapshot.User) { u.DisplayName = "" }},
+		{name: "email", field: "email", messageContains: "valid", clear: func(u *orgsnapshot.User) { u.Email = "" }},
+		{name: "hierarchy level", field: "hierarchyLevelId", messageContains: "required", clear: func(u *orgsnapshot.User) { u.HierarchyLevelID = "" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			snap := validSnapshot()
 			tt.clear(&snap.Users[0])
-			if !hasError(snap.Validate(), orgsnapshot.EntityUser, tt.field, "required") {
+			if !hasError(snap.Validate(), orgsnapshot.EntityUser, tt.field, tt.messageContains) {
 				t.Fatalf("expected required %s error", tt.field)
 			}
 		})
+	}
+}
+
+func TestValidate_UserFormats(t *testing.T) {
+	snap := validSnapshot()
+	snap.Users[0].Username = "invalid username!"
+	snap.Users[0].Email = "not-an-email"
+	snap.Users[0].HierarchyLevelID = strings.Repeat("x", 51)
+	errs := snap.Validate()
+	for _, field := range []string{"username", "email", "hierarchyLevelId"} {
+		if !hasError(errs, orgsnapshot.EntityUser, field, "") {
+			t.Fatalf("expected %s format error", field)
+		}
+	}
+}
+
+func TestValidate_IDLessRecordsUseIndexes(t *testing.T) {
+	snap := validSnapshot()
+	snap.Users = []orgsnapshot.User{{}, {}}
+	for _, err := range snap.Validate() {
+		if err.Entity == orgsnapshot.EntityUser && err.Identifier == "" {
+			t.Fatalf("expected indexed user error, got %+v", err)
+		}
+	}
+}
+
+func TestValidationErrors_ComposeAsError(t *testing.T) {
+	errs := orgsnapshot.ValidationErrors{{Entity: orgsnapshot.EntityUser, Field: "id", Message: "required"}}
+	if errs.Error() == "" || len(errs.Unwrap()) != 1 {
+		t.Fatalf("expected aggregate error behavior, got %q", errs.Error())
 	}
 }
 
@@ -276,7 +341,7 @@ func TestValidate_RecordLevelErrorsIdentifyEntityAndField(t *testing.T) {
 	}
 }
 
-func hasError(errs []orgsnapshot.ValidationError, entity orgsnapshot.EntityType, field, messageContains string) bool {
+func hasError(errs orgsnapshot.ValidationErrors, entity orgsnapshot.EntityType, field, messageContains string) bool {
 	for _, e := range errs {
 		if e.Entity == entity && e.Field == field && strings.Contains(e.Message, messageContains) {
 			return true

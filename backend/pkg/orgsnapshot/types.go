@@ -1,11 +1,7 @@
 // Package orgsnapshot defines the provider-neutral organization snapshot contract.
 package orgsnapshot
 
-import (
-	"encoding/json"
-	"errors"
-	"time"
-)
+import "time"
 
 // ContractVersion is the current snapshot contract version.
 const ContractVersion = "1.0"
@@ -17,29 +13,7 @@ type User struct {
 	DisplayName      string  `json:"displayName"`
 	Email            string  `json:"email"`
 	HierarchyLevelID string  `json:"hierarchyLevelId"`
-	ReportsToID      *string `json:"reportsToId"` // Nil identifies a root user with no manager.
-}
-
-// UnmarshalJSON requires reportsToId to be present while allowing null for root users.
-func (u *User) UnmarshalJSON(data []byte) error {
-	type userAlias User
-	var decoded struct {
-		userAlias
-		ReportsToID json.RawMessage `json:"reportsToId"`
-	}
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	if decoded.ReportsToID == nil {
-		return errors.New("reportsToId is required")
-	}
-	if string(decoded.ReportsToID) != "null" {
-		if err := json.Unmarshal(decoded.ReportsToID, &decoded.userAlias.ReportsToID); err != nil {
-			return err
-		}
-	}
-	*u = User(decoded.userAlias)
-	return nil
+	ReportsToID      *string `json:"reportsToId,omitempty"` // Nil identifies a root user with no manager.
 }
 
 // Team represents a team from an external organization data source.
