@@ -24,7 +24,7 @@ Go / Gin backend (port 8080)   <- Domain-Driven Design, database/sql + lib/pq
 PostgreSQL 17 (port 5432)      <- ACID, 11 tables, golang-migrate
 ```
 
-The browser calls the Go backend **directly** at `NEXT_PUBLIC_API_URL` (e.g. `http://localhost:8080`) — there is no same-origin proxy route in the Next.js app (no `frontend/app/api/`). Cross-origin requests are handled by the backend's own `CORSMiddleware` (`backend/interfaces/api/middleware/cors.go`), registered in `backend/cmd/api/main.go`.
+The browser calls the Go backend **directly**: `frontend/lib/api/client.ts` sets `API_BASE_URL` to `NEXT_PUBLIC_API_URL` when set (e.g. `http://localhost:8080` in local dev) or to an empty string otherwise, so in production (same-origin, unified container) requests go to relative `/api/v1/...` paths served by the same Go binary. There is no Next.js route handler under `frontend/app/api/`. `frontend/next.config.ts` does define a dev-only `rewrites()` proxy from `/api/:path*` to `http://localhost:8080/api/:path*`, but it's unused in practice because the API client always calls an absolute `NEXT_PUBLIC_API_URL` in local dev; cross-origin requests in that scenario are handled by the backend's own `CORSMiddleware` (`backend/interfaces/api/middleware/cors.go`), registered in `backend/cmd/api/main.go`.
 
 ---
 

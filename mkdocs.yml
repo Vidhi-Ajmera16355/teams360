@@ -54,7 +54,7 @@ markdown_extensions:
   - pymdownx.snippets
 
 nav:
-  - Home: INDEX.md
+  - Home: index.md
   - Overview: overview.md
   - Getting Started:
       - Local Setup: getting-started/local-setup.md

@@ -145,16 +145,16 @@ if (path === '/survey' && user.canTakeSurvey !== true) {
 A user can access a team's data if **any** of the following is true:
 
 1. `canViewAllTeams` is true for their hierarchy level (VP, Director; Admin bypasses this check entirely)
-2. The user is a member of the team (`team.memberIds`)
+2. The user is a member of the team (`team.members`)
 3. The user appears in the team's `supervisorChain`
 
 Logic implemented in `frontend/lib/org-config.ts`:
 
 ```typescript
-export function canUserAccessTeam(user: User, team: Team, orgConfig: OrgConfig): boolean {
-  const permissions = getUserPermissions(user, orgConfig);
+export function canUserAccessTeam(user: User, team: Team): boolean {
+  const permissions = getUserPermissions(user);
   if (permissions.canViewAllTeams) return true;
-  if (team.memberIds.includes(user.id)) return true;
+  if (team.members.includes(user.id)) return true;
   return team.supervisorChain.some(s => s.userId === user.id);
 }
 ```
@@ -189,7 +189,7 @@ The JWT/RBAC checks above are frontend route protection (which page loads). The 
 | `SameUserOrManagerMiddleware` | Caller is the target user or their manager |
 | `TeamMembershipMiddleware` | Caller is a member of, or supervisor over, the `:teamId` route param |
 
-`/api/v1/auth/login`, `/api/v1/auth/refresh`, and `/api/v1/auth/logout` are the only public routes (see `backend/interfaces/api/v1/auth_routes.go`); every other `/api/v1/*` route requires a valid JWT.
+The full set of public (no-JWT) `/api/v1/*` routes is: `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout` (`backend/interfaces/api/v1/auth_routes.go`); `/api/v1/auth/sso/callback` and `/api/v1/config` (`backend/interfaces/api/v1/sso_routes.go`); and `/api/v1/auth/forgot-password`, `/api/v1/auth/reset-password` (`backend/interfaces/api/v1/password_reset_handler.go`). Every other `/api/v1/*` route requires a valid JWT.
 
 ---
 

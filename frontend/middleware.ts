@@ -4,11 +4,9 @@ import type { NextRequest } from 'next/server';
 function handleDocsRequest(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // The docs homepage source is docs/INDEX.md (not "index.md"), so MkDocs
-  // builds it at /docs/INDEX/ rather than the site root /docs/index.html.
-  // Send the bare /docs root there.
-  if (pathname === '/docs' || pathname === '/docs/') {
-    return NextResponse.redirect(new URL('/docs/INDEX/', request.url), 308);
+  
+  if (/^\/docs\/INDEX\/?$/.test(pathname)) {
+    return NextResponse.redirect(new URL('/docs/', request.url), 308);
   }
 
   // MkDocs pages use relative asset links (e.g. "assets/main.css"), so a
@@ -30,7 +28,8 @@ function handleDocsRequest(request: NextRequest) {
 }
 
 export function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith('/docs')) {
+  const { pathname } = request.nextUrl;
+  if (pathname === '/docs' || pathname.startsWith('/docs/')) {
     return handleDocsRequest(request);
   }
 

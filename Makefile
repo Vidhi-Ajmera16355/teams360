@@ -40,6 +40,7 @@ FRONTEND_PID := $(PID_DIR)/frontend.pid
 .PHONY: clean clean-frontend clean-backend clean-all
 .PHONY: db-start db-stop db-setup db-reset db-test-setup
 .PHONY: docker-build docker-run
+.PHONY: docs-build
 .PHONY: status info
 .PHONY: all ci
 .PHONY: otel-start otel-stop otel-status otel-logs run-with-otel
@@ -109,9 +110,11 @@ docs-build: ## [Docs] Build MkDocs site into frontend/public/docs (served at /do
 	@if command -v mkdocs >/dev/null 2>&1; then \
 		echo "$(CYAN)Building documentation site...$(RESET)"; \
 		mkdocs build -d frontend/public/docs -q; \
-	elif command -v docker >/dev/null 2>&1; then \
+	elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
 		echo "$(CYAN)Building documentation site (via Docker)...$(RESET)"; \
-		docker run --rm -v "$(PWD)":/docs squidfunk/mkdocs-material:latest build -d /docs/frontend/public/docs -q; \
+		docker run --rm -v "$(CURDIR)":/docs squidfunk/mkdocs-material:latest build -d /docs/frontend/public/docs -q; \
+	elif command -v docker >/dev/null 2>&1; then \
+		echo "$(YELLOW)Docker is installed but the daemon isn't running; skipping docs build.$(RESET)"; \
 	else \
 		echo "$(YELLOW)Neither mkdocs nor docker found, skipping docs build.$(RESET)"; \
 	fi

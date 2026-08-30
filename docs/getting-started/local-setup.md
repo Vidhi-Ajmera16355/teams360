@@ -34,7 +34,7 @@ docker --version # must be >= 24
 | Tool | Purpose |
 |------|---------|
 | `psql` (PostgreSQL CLI) | Inspect the database directly |
-| `air` | Hot-reload for Go backend (`go install github.com/cosmtrek/air@latest`) |
+| `air` | Hot-reload for Go backend (`go install github.com/air-verse/air@latest`) |
 | `ginkgo` CLI | Run backend tests directly (`go install github.com/onsi/ginkgo/v2/ginkgo@latest`) |
 
 ---
@@ -65,7 +65,9 @@ set +a
 make run
 ```
 
-The Makefile itself only ever hardcodes and passes `DATABASE_URL` (and `TEST_DATABASE_URL`) explicitly to `go run`, each with a `?=` default you can override either by exporting it beforehand (as above) or passing it on the command line: `make run DATABASE_URL=...`. Every other backend variable (`GIN_MODE`, `API_PORT`, `OAUTH_*`, `AWS_SES_*`, `SMTP_*`) is read by the Go process via plain `os.Getenv`, so it must already be present in the shell's environment when `go run cmd/api/main.go` starts — sourcing `.env` as shown above is the simplest way to do that for local dev.
+The Makefile itself only ever hardcodes and passes `DATABASE_URL` (and `TEST_DATABASE_URL`) explicitly to `go run`, each with a `?=` default you can override either by exporting it beforehand (as above) or passing it on the command line: `make run DATABASE_URL=...`. Every other backend variable (`GIN_MODE`, `PORT`, `OAUTH_*`, `AWS_SES_*`, `SMTP_*`) is read by the Go process via plain `os.Getenv`, so it must already be present in the shell's environment when `go run cmd/api/main.go` starts — sourcing `.env` as shown above is the simplest way to do that for local dev.
+
+Note: the backend listens on the port in the `PORT` variable (default `8080`), not `API_PORT`. `API_PORT` in `.env.example` is a host-port convenience variable used by Docker Compose to both set the container's `PORT` and map the host port; it has no effect when running `go run cmd/api/main.go` directly.
 
 Below is a realistic local configuration (all values are safe for local dev — never commit real secrets):
 
@@ -77,8 +79,8 @@ Below is a realistic local configuration (all values are safe for local dev — 
 # Database connection (REQUIRED)
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/teams360?sslmode=disable
 
-# API server
-API_PORT=8080
+# API server (the Go process reads PORT directly, not API_PORT)
+PORT=8080
 GIN_MODE=debug
 
 # Frontend

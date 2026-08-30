@@ -18,7 +18,7 @@ For self-hosted deployment, the repo ships a KubeVela + CloudNativePG setup — 
 
 ```env
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/teams360?sslmode=disable
-API_PORT=8080
+PORT=8080
 GIN_MODE=debug
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
