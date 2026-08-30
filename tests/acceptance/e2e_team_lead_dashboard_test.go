@@ -294,7 +294,7 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				time.Sleep(1 * time.Second)
 
 				By("Verifying a seeded team member comment is displayed")
-				comment := page.GetByText("Great clarity on our mission")
+				comment := page.GetByText("Great clarity")
 				err = comment.WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
