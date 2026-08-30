@@ -335,4 +335,13 @@ func (s Snapshot) Validate() ValidationErrors {
 	return errs
 }
 
+// ValidationError returns nil for a valid snapshot or all validation failures as one error.
+func (s Snapshot) ValidationError() error {
+	errs := s.Validate()
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs
+}
+
 var _ error = ValidationErrors{}

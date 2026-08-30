@@ -352,6 +352,17 @@ func TestValidationErrors_ComposeAsError(t *testing.T) {
 	}
 }
 
+func TestValidationError_ReturnsNilForValidSnapshot(t *testing.T) {
+	if err := validSnapshot().ValidationError(); err != nil {
+		t.Fatalf("expected nil error for valid snapshot, got %v", err)
+	}
+	snap := validSnapshot()
+	snap.Users = nil
+	if err := snap.ValidationError(); err == nil {
+		t.Fatal("expected aggregate error for invalid snapshot")
+	}
+}
+
 func TestValidate_RecordLevelErrorsIdentifyEntityAndField(t *testing.T) {
 	snap := validSnapshot()
 	snap.Users = append(snap.Users, orgsnapshot.User{})
