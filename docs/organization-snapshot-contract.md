@@ -33,6 +33,7 @@ The organization snapshot is a complete, provider-neutral representation of exte
 ## Identity
 
 - Provider user and team IDs are canonical IDs for externally managed records. They must be non-empty, stable, unique within their entity type, and never reused.
+- One external provider is active at a time. Provider IDs share Team Health Check's record-ID namespace; switching providers or linking a provider record to an existing local record requires an explicit migration outside v1.0.
 
 ## Required and Optional Fields
 
@@ -44,7 +45,7 @@ The organization snapshot is a complete, provider-neutral representation of exte
 
 ## Complete Snapshot Semantics
 
-- `users`, `teams`, and `memberships` should be JSON arrays, using `[]` rather than `null` when empty.
+- `users`, `teams`, and `memberships` should be JSON arrays rather than `null`. `users` and `teams` must each contain at least one record; `memberships` may be empty.
 - `memberships` is the complete source of truth for externally managed team membership. Omitting a user-team pair removes that external membership during reconciliation.
 - The snapshot is complete for its configured provider. A later reconciliation service deactivates externally managed records absent from a successfully validated snapshot, but does not alter local records or Team Health Check-owned data.
 - Synchronization must track provider provenance so externally managed records can be distinguished from local records.
@@ -53,7 +54,7 @@ The organization snapshot is a complete, provider-neutral representation of exte
 
 - `Validate` performs structural checks after decoding. JSON decoders should reject malformed payloads; unknown fields are ignored by Go's default `encoding/json` behavior.
 - `generatedAt` records when the provider generated the snapshot. Stale or out-of-order snapshot checks belong to synchronization because they require the last successful sync state.
-- Synchronization must apply a configured blast-radius guard before deactivating a large percentage of existing external records, including when a snapshot is empty.
+- Synchronization must apply a configured blast-radius guard before deactivating a large percentage of existing external records. Empty user or team collections are rejected by contract validation, while the guard protects against dangerously incomplete non-empty snapshots.
 
 ## Versioning
 

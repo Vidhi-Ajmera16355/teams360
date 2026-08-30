@@ -71,6 +71,20 @@ func (s Snapshot) Validate() ValidationErrors {
 			Message: "generatedAt is required",
 		})
 	}
+	if len(s.Users) == 0 {
+		errs = append(errs, ValidationError{
+			Entity:  EntitySnapshot,
+			Field:   "users",
+			Message: "users must contain at least one record",
+		})
+	}
+	if len(s.Teams) == 0 {
+		errs = append(errs, ValidationError{
+			Entity:  EntitySnapshot,
+			Field:   "teams",
+			Message: "teams must contain at least one record",
+		})
+	}
 
 	userIDs := make(map[string]bool, len(s.Users))
 	for i, u := range s.Users {

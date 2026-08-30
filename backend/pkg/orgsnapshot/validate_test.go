@@ -172,6 +172,33 @@ func TestValidate_UnsupportedContractVersion(t *testing.T) {
 	}
 }
 
+func TestValidate_RejectsEmptyUsers(t *testing.T) {
+	snap := validSnapshot()
+	snap.Users = []orgsnapshot.User{}
+
+	if !hasError(snap.Validate(), orgsnapshot.EntitySnapshot, "users", "at least one") {
+		t.Fatal("expected empty users error")
+	}
+}
+
+func TestValidate_RejectsEmptyTeams(t *testing.T) {
+	snap := validSnapshot()
+	snap.Teams = []orgsnapshot.Team{}
+
+	if !hasError(snap.Validate(), orgsnapshot.EntitySnapshot, "teams", "at least one") {
+		t.Fatal("expected empty teams error")
+	}
+}
+
+func TestValidate_AllowsEmptyMemberships(t *testing.T) {
+	snap := validSnapshot()
+	snap.Memberships = []orgsnapshot.Membership{}
+
+	if errs := snap.Validate(); len(errs) != 0 {
+		t.Fatalf("expected empty memberships to be valid, got %+v", errs)
+	}
+}
+
 func TestValidate_DuplicateMembership(t *testing.T) {
 	snap := validSnapshot()
 	snap.Memberships = append(snap.Memberships, snap.Memberships[0])
@@ -326,19 +353,19 @@ func TestValidationErrors_ComposeAsError(t *testing.T) {
 }
 
 func TestValidate_RecordLevelErrorsIdentifyEntityAndField(t *testing.T) {
-	snap := orgsnapshot.Snapshot{
-		ContractVersion: orgsnapshot.ContractVersion,
-		Users:           []orgsnapshot.User{{ID: ""}},
-	}
+	snap := validSnapshot()
+	snap.Users = append(snap.Users, orgsnapshot.User{})
 
 	errs := snap.Validate()
-	if len(errs) == 0 {
-		t.Fatalf("expected at least one error")
+	for _, err := range errs {
+		if err.Entity == orgsnapshot.EntityUser && err.Identifier == "index 2" {
+			if err.Field == "" || err.Message == "" {
+				t.Fatalf("expected user error to identify field and message, got %+v", err)
+			}
+			return
+		}
 	}
-	e := errs[0]
-	if e.Entity == "" || e.Field == "" || e.Message == "" {
-		t.Fatalf("expected error to identify entity, field, and message, got %+v", e)
-	}
+	t.Fatal("expected an indexed user validation error")
 }
 
 func hasError(errs orgsnapshot.ValidationErrors, entity orgsnapshot.EntityType, field, messageContains string) bool {
