@@ -10,18 +10,15 @@ Team Health Check is a decoupled frontend/backend application:
 
 ```
 Browser
+  |-- loads UI ----------> Next.js 15 (port 3000)
+  |                         App Router, TypeScript, Tailwind CSS
   |
-  | HTTP / HTTPS
-  v
-Next.js 15 (port 3000)         <- App Router, TypeScript, Tailwind CSS
-  |
-  | HTTP/JSON  (REST API at /api/v1/*)
-  v
-Go / Gin backend (port 8080)   <- Domain-Driven Design, database/sql + lib/pq
-  |
-  | SQL (database/sql, lib/pq driver)
-  v
-PostgreSQL 17 (port 5432)      <- ACID, 11 tables, golang-migrate
+  |-- HTTP/JSON ---------> Go / Gin backend (port 8080)
+                            Domain-Driven Design, database/sql + lib/pq
+                              |
+                              | SQL (database/sql, lib/pq driver)
+                              v
+                            PostgreSQL 17 (port 5432)
 ```
 
 The browser calls the Go backend **directly**: `frontend/lib/api/client.ts` sets `API_BASE_URL` to `NEXT_PUBLIC_API_URL` when set (e.g. `http://localhost:8080` in local dev) or to an empty string otherwise, so in production (same-origin, unified container) requests go to relative `/api/v1/...` paths served by the same Go binary. There is no Next.js route handler under `frontend/app/api/`. `frontend/next.config.ts` does define a dev-only `rewrites()` proxy from `/api/:path*` to `http://localhost:8080/api/:path*`, but it's unused in practice because the API client always calls an absolute `NEXT_PUBLIC_API_URL` in local dev; cross-origin requests in that scenario are handled by the backend's own `CORSMiddleware` (`backend/interfaces/api/middleware/cors.go`), registered in `backend/cmd/api/main.go`.
@@ -155,35 +152,26 @@ teams360/
 **Entry point**: `GET /login` → user fills form → `POST /api/v1/auth/login`
 
 ```
-Browser             Next.js             Go / Gin            PostgreSQL
-  |                    |                    |                    |
-  | 1. POST /login     |                    |                    |
-  | username + pw      |                    |                    |
-  |──────────────────> |                    |                    |
-  |                    | 2. POST /api/v1/   |                    |
-  |                    |    auth/login      |                    |
-  |                    | ─────────────────> |                    |
-  |                    |                    | 3. SELECT user     |
-  |                    |                    |    WHERE username  |
-  |                    |                    | ─────────────────> |
-  |                    |                    |                    |
-  |                    |                    | 4. Return user row |
-  |                    |                    | <───────────────── |
-  |                    |                    |                    |
-  |                    |                    | 5. bcrypt.Compare  |
-  |                    |                    |    (pw, hash)      |
-  |                    |                    |                    |
-  |                    | 6. 200 + JWT       |                    |
-  |                    |    access/refresh  |                    |
-  |                    | <───────────────── |                    |
-  |                    |                    |                    |
-  | 7. Store tokens in |                    |                    |
-  |    localStorage +  |                    |                    |
-  |    set `user`      |                    |                    |
-  |    cookie (7 days) |                    |                    |
-  | 8. Redirect to     |                    |                    |
-  |    role dashboard  |                    |                    |
-  | <────────────────  |                    |                    |
+Browser                                  Go / Gin            PostgreSQL
+  |                                         |                    |
+  | 1. POST /api/v1/auth/login              |                    |
+  |    username + password                  |                    |
+  | ──────────────────────────────────────> |                    |
+  |                                         | 2. SELECT user     |
+  |                                         |    WHERE username  |
+  |                                         | ─────────────────> |
+  |                                         |                    |
+  |                                         | 3. Return user row |
+  |                                         | <───────────────── |
+  |                                         |                    |
+  |                                         | 4. bcrypt.Compare  |
+  |                                         |    (pw, hash)      |
+  |                                         |                    |
+  | 5. 200 + JWT access/refresh             |                    |
+  | <────────────────────────────────────── |                    |
+  |                                         |                    |
+  | 6. Store tokens in localStorage and set `user` cookie        |
+  | 7. Redirect to role dashboard            |                    |
 ```
 
 **Components involved:**

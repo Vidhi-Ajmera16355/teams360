@@ -30,7 +30,6 @@ backend/
 - **Value Objects**: `HierarchyLevel`, `HealthDimension`, `HealthCheckResponse`
 - **Repositories**: Abstract data access with domain-focused interfaces
 - **Domain Services**: Cross-aggregate business logic
-- **Domain Events**: `UserCreated`, `TeamAssigned`, `HealthCheckCompleted`, etc.
 
 ## Test-Driven Development
 

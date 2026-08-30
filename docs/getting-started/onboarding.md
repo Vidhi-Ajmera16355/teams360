@@ -25,7 +25,6 @@ Find a buddy engineer (another contributor/maintainer) willing to review your fi
 - [ ] Verify setup validation: log in as `demo/demo`, submit a survey, then log in as `manager1/demo` and confirm health data appears
 - [ ] Run backend tests: `cd backend && go test ./...` — all should pass
 - [ ] Run E2E tests: `make test-e2e` — all should pass (takes 2–5 minutes)
-- [ ] Bookmark internal URLs for Dev environment (see [environments.md](./environments.md))
 
 ### Afternoon: Codebase orientation
 

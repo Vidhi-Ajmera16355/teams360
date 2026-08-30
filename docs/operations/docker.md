@@ -81,7 +81,7 @@ in Docker) so you get hot reload; the Makefile starts PostgreSQL in a
 container for you:
 
 ```bash
-make db-start   # PostgreSQL 17 container on port 5432
+make db-start   # PostgreSQL 16 container on port 5432
 make run        # Backend (go run) + frontend (next dev) together
 ```
 
@@ -310,8 +310,8 @@ docker logs teams360
 # Test connectivity from container
 docker exec teams360 wget -qO- http://localhost:8080/health
 
-# Check database is reachable
-docker exec teams360 nc -zv <db-host> 5432
+# Check the configured database host resolves from the container
+docker exec teams360 getent hosts <db-host>
 ```
 
 ### Health Check Failing

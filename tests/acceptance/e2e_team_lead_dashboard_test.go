@@ -1,11 +1,12 @@
 package acceptance_test
 
 import (
+	"strings"
 	"time"
 
+	"github.com/mxschmitt/playwright-go"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/mxschmitt/playwright-go"
 )
 
 var _ = Describe("E2E: Team Lead Dashboard", func() {
@@ -107,11 +108,23 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 		// the multi-team selector is present so this suite's assertions always
 		// target the fixture data seeded for testTeamID.
 		teamSelector := page.Locator("[data-testid='team-selector']")
-		if visible, _ := teamSelector.IsVisible(); visible {
+		selectorVisible := false
+		Eventually(func() bool {
+			selectorVisible, _ = teamSelector.IsVisible()
+			if selectorVisible {
+				return true
+			}
+			heading, _ := page.Locator("h1").TextContent()
+			return strings.Contains(heading, "E2E Team Alpha")
+		}, 10*time.Second, 250*time.Millisecond).Should(BeTrue(), "Dashboard should select the fixture team")
+		if selectorVisible {
 			_, err = teamSelector.SelectOption(playwright.SelectOptionValues{
 				Values: &[]string{testTeamID},
 			})
 			Expect(err).NotTo(HaveOccurred())
+			selected, err := teamSelector.InputValue()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(selected).To(Equal(testTeamID))
 
 			// Wait for the dashboard to reload data for the selected team
 			Eventually(func() bool {
@@ -162,7 +175,7 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 
 				// Either the chart or the "no data" message should be visible
 				chartOrNoData := page.Locator("[data-testid='radar-chart'], .recharts-radar, svg:has(.recharts-polar-grid)").
-				Or(page.Locator("text=No health data available"))
+					Or(page.Locator("text=No health data available"))
 				err = chartOrNoData.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
@@ -276,7 +289,7 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 
 				// Check for either response cards or "no responses" message
 				responseContent := page.Locator("[data-testid='response-card']").
-				Or(page.Locator("text=No individual responses available"))
+					Or(page.Locator("text=No individual responses available"))
 				err = responseContent.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),

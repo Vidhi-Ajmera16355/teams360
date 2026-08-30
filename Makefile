@@ -112,7 +112,8 @@ docs-build: ## [Docs] Build MkDocs site into frontend/public/docs (served at /do
 		mkdocs build -d frontend/public/docs -q; \
 	elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
 		echo "$(CYAN)Building documentation site (via Docker)...$(RESET)"; \
-		docker run --rm -v "$(CURDIR)":/docs squidfunk/mkdocs-material:latest build -d /docs/frontend/public/docs -q; \
+		docker run --rm -v "$(CURDIR)":/docs squidfunk/mkdocs-material:latest build -d /docs/frontend/public/docs -q || \
+			echo "$(YELLOW)Documentation build failed; continuing without generated docs.$(RESET)"; \
 	elif command -v docker >/dev/null 2>&1; then \
 		echo "$(YELLOW)Docker is installed but the daemon isn't running; skipping docs build.$(RESET)"; \
 	else \

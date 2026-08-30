@@ -6,7 +6,7 @@
 
 ## What Actually Exists Today
 
-Team Health Check ships as an open-source app with exactly one first-party environment: **local development** (this repo, run on your machine via `make run` / `make dev`). There is no hosted Dev, Int, or Prod environment, no auto-deploy-on-merge pipeline, and no shared Slack/Okta/VPN/secrets-manager setup for this project — check `.github/workflows/` (`ci.yml`, `release.yml`, `security.yml`) for the actual CI, none of which deploy anywhere.
+Team Health Check ships as an open-source app with exactly one first-party environment: **local development** (this repo, run on your machine via `make run` / `make dev`). There is no hosted Dev, Int, or Prod environment, no auto-deploy-on-merge pipeline, and no shared Slack/Okta/VPN/secrets-manager setup for this project. The workflows in `.github/workflows/` run CI and publish release images to GHCR, but do not deploy a hosted application environment.
 
 | Environment | Purpose | Frontend URL | Backend URL | DB Host |
 |-------------|---------|-------------|-------------|---------|
