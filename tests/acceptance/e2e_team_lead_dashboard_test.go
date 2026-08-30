@@ -293,6 +293,11 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				_ = responsesTab.Click()
 				time.Sleep(1 * time.Second)
 
+				By("Switching to Cards view")
+				cardsButton := page.Locator("[data-testid='cards-view-btn']")
+				err = cardsButton.Click()
+				Expect(err).NotTo(HaveOccurred())
+
 				By("Verifying a seeded team member comment is displayed")
 				comment := page.GetByText("Great clarity")
 				err = comment.WaitFor(playwright.LocatorWaitForOptions{
