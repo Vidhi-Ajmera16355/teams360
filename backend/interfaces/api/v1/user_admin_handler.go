@@ -25,6 +25,15 @@ func NewUserAdminHandler(userRepo user.Repository, teamRepo team.Repository) *Us
 }
 
 // ListUsers handles GET /api/v1/admin/users
+//
+// @Summary List users
+// @Description Returns all users. Requires admin (level-1) role.
+// @Tags admin-users
+// @Produce json
+// @Success 200 {object} dto.UsersResponse
+// @Failure 500 {object} dto.ErrorResponse "Failed to query users"
+// @Security BearerAuth
+// @Router /admin/users [get]
 func (h *UserAdminHandler) ListUsers(c *gin.Context) {
 	users, err := h.userRepo.FindAll(c.Request.Context())
 	if err != nil {
@@ -65,6 +74,18 @@ func (h *UserAdminHandler) ListUsers(c *gin.Context) {
 }
 
 // CreateUser handles POST /api/v1/admin/users
+//
+// @Summary Create a user
+// @Description Creates a new user (local or SSO auth type). Local users require a password. Requires admin (level-1) role.
+// @Tags admin-users
+// @Accept json
+// @Produce json
+// @Param body body dto.CreateUserRequest true "User to create"
+// @Success 201 {object} dto.AdminUserDTO
+// @Failure 400 {object} dto.ErrorResponse "Invalid request body or missing/short password for local user"
+// @Failure 500 {object} dto.ErrorResponse "Failed to hash password or create user"
+// @Security BearerAuth
+// @Router /admin/users [post]
 func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 	var req dto.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -140,6 +161,20 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 }
 
 // UpdateUser handles PUT /api/v1/admin/users/:id
+//
+// @Summary Update a user
+// @Description Updates a user's profile, role, auth type, and/or password. Re-derives supervisor chains if reportsTo or hierarchy level changes. Requires admin (level-1) role.
+// @Tags admin-users
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param body body dto.UpdateUserRequest true "Fields to update"
+// @Success 200 {object} dto.AdminUserDTO
+// @Failure 400 {object} dto.ErrorResponse "Invalid request body, invalid authType, cannot set password for SSO user, or password required when switching to local auth"
+// @Failure 404 {object} dto.ErrorResponse "User not found"
+// @Failure 500 {object} dto.ErrorResponse "Failed to hash password, update user, or update password"
+// @Security BearerAuth
+// @Router /admin/users/{id} [put]
 func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 	id := c.Param("id")
 	var req dto.UpdateUserRequest
@@ -262,6 +297,16 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 }
 
 // DeleteUser handles DELETE /api/v1/admin/users/:id
+//
+// @Summary Delete a user
+// @Description Deletes a user. Requires admin (level-1) role.
+// @Tags admin-users
+// @Produce json
+// @Param id path string true "User ID"
+// @Success 200 {object} dto.MessageResponse
+// @Failure 500 {object} dto.ErrorResponse "Failed to delete user"
+// @Security BearerAuth
+// @Router /admin/users/{id} [delete]
 func (h *UserAdminHandler) DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 
