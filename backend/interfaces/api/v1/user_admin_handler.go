@@ -33,6 +33,18 @@ func NewUserAdminHandler(userRepo user.Repository, teamRepo team.Repository) *Us
 // ListUsers handles GET /api/v1/admin/users
 // Supports pagination (page, pageSize) and filtering (search, role) applied
 // at the database level.
+// @Summary List users (paginated)
+// @Description Returns a paginated, filterable list of users. Requires admin (level-1) role.
+// @Tags admin-users
+// @Produce json
+// @Param page query int false "Page number (default 1)"
+// @Param pageSize query int false "Page size (default 25, max 100)"
+// @Param search query string false "Search by username/name/email"
+// @Param role query string false "Filter by hierarchy level ID"
+// @Success 200 {object} dto.UsersResponse
+// @Failure 500 {object} dto.ErrorResponse "Failed to query users"
+// @Security BearerAuth
+// @Router /admin/users [get]
 func (h *UserAdminHandler) ListUsers(c *gin.Context) {
 	page := parsePositiveIntParam(c, "page", 1)
 	pageSize := min(parsePositiveIntParam(c, "pageSize", defaultUsersPageSize), maxUsersPageSize)
@@ -94,6 +106,14 @@ func (h *UserAdminHandler) ListUsers(c *gin.Context) {
 // ListUsersLite handles GET /api/v1/admin/users/lite
 // Returns minimal user data for the full user set, for dropdowns/pickers
 // that need every user without the cost of the full paginated listing.
+// @Summary List all users (lite)
+// @Description Returns minimal user data (id, username, full name, hierarchy level) for the full user set, for dropdowns/pickers. Requires admin (level-1) role.
+// @Tags admin-users
+// @Produce json
+// @Success 200 {object} dto.UsersLiteResponse
+// @Failure 500 {object} dto.ErrorResponse "Failed to query users"
+// @Security BearerAuth
+// @Router /admin/users/lite [get]
 func (h *UserAdminHandler) ListUsersLite(c *gin.Context) {
 	users, err := h.userRepo.FindAllLite(c.Request.Context())
 	if err != nil {
@@ -132,6 +152,18 @@ func parsePositiveIntParam(c *gin.Context, name string, def int) int {
 }
 
 // CreateUser handles POST /api/v1/admin/users
+//
+// @Summary Create a user
+// @Description Creates a new user (local or SSO auth type). Local users require a password. Requires admin (level-1) role.
+// @Tags admin-users
+// @Accept json
+// @Produce json
+// @Param body body dto.CreateUserRequest true "User to create"
+// @Success 201 {object} dto.AdminUserDTO
+// @Failure 400 {object} dto.ErrorResponse "Invalid request body or missing/short password for local user"
+// @Failure 500 {object} dto.ErrorResponse "Failed to hash password or create user"
+// @Security BearerAuth
+// @Router /admin/users [post]
 func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 	var req dto.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -207,6 +239,20 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 }
 
 // UpdateUser handles PUT /api/v1/admin/users/:id
+//
+// @Summary Update a user
+// @Description Updates a user's profile, role, auth type, and/or password. Re-derives supervisor chains if reportsTo or hierarchy level changes. Requires admin (level-1) role.
+// @Tags admin-users
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param body body dto.UpdateUserRequest true "Fields to update"
+// @Success 200 {object} dto.AdminUserDTO
+// @Failure 400 {object} dto.ErrorResponse "Invalid request body, invalid authType, cannot set password for SSO user, or password required when switching to local auth"
+// @Failure 404 {object} dto.ErrorResponse "User not found"
+// @Failure 500 {object} dto.ErrorResponse "Failed to hash password, update user, or update password"
+// @Security BearerAuth
+// @Router /admin/users/{id} [put]
 func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 	id := c.Param("id")
 	var req dto.UpdateUserRequest
@@ -329,6 +375,16 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 }
 
 // DeleteUser handles DELETE /api/v1/admin/users/:id
+//
+// @Summary Delete a user
+// @Description Deletes a user. Requires admin (level-1) role.
+// @Tags admin-users
+// @Produce json
+// @Param id path string true "User ID"
+// @Success 200 {object} dto.MessageResponse
+// @Failure 500 {object} dto.ErrorResponse "Failed to delete user"
+// @Security BearerAuth
+// @Router /admin/users/{id} [delete]
 func (h *UserAdminHandler) DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 
